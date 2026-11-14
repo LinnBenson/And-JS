@@ -128,3 +128,5 @@ options.start/end 为 Unix 毫秒，默认今天零点到现在。历史读取�
 Copyright 2026 LinnBenson.
 
 And JS 采用 [Apache License 2.0](LICENSE) 开源。第三方组件及资源遵循各自的许可证，相关说明见 [第三方资料](docs/third-party/) 和 [随应用提供的许可证](app/src/main/assets/licenses/)。
+
+`andjs.util.time()` 返回当前 Unix 整数秒；`andjs.util.date(format, timestamp)` 按设备本地时区格式化秒级时间戳，默认格式为 `yyyy-MM-dd HH:mm:ss`，省略时间戳时使用当前时间。

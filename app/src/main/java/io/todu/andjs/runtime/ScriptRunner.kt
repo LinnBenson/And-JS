@@ -163,9 +163,8 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                 val log=objectValue(api,"log")
                 listOf("info","warn","error").forEach {level->function(log,level) {args->
                     val message=args.joinToString(" ") {display(it)}
-                    for(line in message.lineSequence()) {
-                        if(logs.size>=maxLogs+1) break
-                        if(logs.size<maxLogs) logs.add(LogEntry(level,line.take(2_000)))
+                    if(logs.size<maxLogs+1) {
+                        if(logs.size<maxLogs) logs.add(LogEntry(level,message.take(2_000)))
                         else logs.add(LogEntry("warn","日志已达到 $maxLogs 条上限"))
                         onLogs(logs.toList())
                     }
@@ -346,6 +345,22 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                     val value=args.firstOrNull()
                     require(value is CharSequence) {"MD5 输入必须为字符串"}
                     java.security.MessageDigest.getInstance("MD5").digest(value.toString().toByteArray(Charsets.UTF_8)).joinToString("") {"%02x".format(it.toInt() and 255)}
+                }
+                function(util,"time") {java.time.Instant.now().epochSecond.toDouble()}
+                function(util,"date") {args->
+                    val format=args.firstOrNull()
+                    require(format==null || format is Undefined || format is CharSequence) {"时间格式必须为字符串"}
+                    val pattern=if(format==null || format is Undefined) "yyyy-MM-dd HH:mm:ss" else format.toString()
+                    require(pattern.length<=200) {"时间格式过长"}
+                    val timestamp=args.getOrNull(1)
+                    val instant=if(timestamp==null && args.size<2 || timestamp is Undefined) java.time.Instant.now() else {
+                        require(timestamp is Number) {"时间戳必须为秒数"}
+                        val seconds=timestamp.toDouble()
+                        require(seconds.isFinite() && seconds%1==0.0 && kotlin.math.abs(seconds)<=8_640_000_000_000.0) {"时间戳须为有效的整数秒"}
+                        java.time.Instant.ofEpochSecond(seconds.toLong())
+                    }
+                    java.time.format.DateTimeFormatter.ofPattern(pattern,java.util.Locale.getDefault())
+                        .withZone(java.time.ZoneId.systemDefault()).format(instant)
                 }
                 function(util,"uuid") {UUID.randomUUID().toString()}
                 val random=SecureRandom()
