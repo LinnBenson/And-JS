@@ -17,7 +17,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,7 +59,7 @@ import androidx.compose.ui.window.DialogProperties
                     LazyColumn(modifier=Modifier.fillMaxWidth().then(if(hasResult) Modifier.heightIn(max=height*.32f) else Modifier.weight(1f)),state=logState,verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         itemsIndexed(run.logs,key={index,_->index}) {_,line->
                             Surface(modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(10.dp),color=Color.White) {
-                                if(line.level=="img") ImageLogItem(line) {previewImage=it} else SelectionContainer {Text(line.text,color=when(line.level) {"warn"->warningColor;"error"->Color(0xFFB3261E);else->Color(0xFF181C17)},modifier=Modifier.padding(horizontal=12.dp,vertical=10.dp),fontSize=12.sp,fontFamily=FontFamily.Monospace)}
+                                if(line.level=="img") ImageLogItem(line) {previewImage=it} else SelectionContainer {Text(line.text,color=when(line.level) {"warn"->warningColor;"error"->Color(0xFFB3261E);else->Color(0xFF181C17)},modifier=Modifier.padding(horizontal=12.dp,vertical=10.dp),fontSize=12.sp)}
                             }
                         }
                     }
@@ -69,7 +68,7 @@ import androidx.compose.ui.window.DialogProperties
                     Surface(modifier=Modifier.fillMaxWidth().weight(1f),shape=RoundedCornerShape(10.dp),color=Color.White) {
                         Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                             SelectionContainer {
-                                Text(resultText,fontSize=14.sp,fontFamily=FontFamily.Monospace,color=if(run.result?.error!=null) Color(0xFFB3261E) else Color(0xFF181C17),modifier=Modifier.padding(horizontal=12.dp,vertical=10.dp))
+                                Text(resultText,fontSize=14.sp,color=if(run.result?.error!=null) Color(0xFFB3261E) else Color(0xFF181C17),modifier=Modifier.padding(horizontal=12.dp,vertical=10.dp))
                             }
                         }
                     }

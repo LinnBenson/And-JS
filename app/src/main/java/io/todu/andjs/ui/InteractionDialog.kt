@@ -1,5 +1,6 @@
 package io.todu.andjs.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
@@ -27,10 +28,13 @@ import io.todu.andjs.runtime.ScriptInteraction
         var text by rememberSaveable {mutableStateOf(request.initial)}
         var selected by rememberSaveable {mutableStateOf(listOf<Int>())}
         val colors=MaterialTheme.colorScheme
+        val overlay=LocalOverlayHost.current
         val cancel={request.respond(null)}
         val maxHeight=(LocalConfiguration.current.screenHeightDp*.8f).dp
         ModalHost(onDismiss=cancel) {
-            Surface(modifier=Modifier.padding(horizontal=28.dp).widthIn(max=400.dp).fillMaxWidth().heightIn(max=maxHeight),shape=RoundedCornerShape(24.dp),color=colors.background) {
+            Surface(modifier=Modifier.padding(horizontal=28.dp).widthIn(max=400.dp).fillMaxWidth().heightIn(max=maxHeight),shape=RoundedCornerShape(24.dp),color=colors.background,
+                border=if(overlay) BorderStroke(1.dp,colors.outlineVariant) else null,
+                shadowElevation=if(overlay) 12.dp else 0.dp) {
                 Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                     Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                         Box(Modifier.size(40.dp).background(colors.primaryContainer,RoundedCornerShape(12.dp)),contentAlignment=Alignment.Center) {
