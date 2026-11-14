@@ -8,6 +8,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -18,6 +20,7 @@ import io.todu.andjs.domain.*
     var category by rememberSaveable {mutableStateOf<String?>(null)}
     val method=ApiCatalog.methods.find {it.id==methodId}
     val colors=MaterialTheme.colorScheme
+    val clipboard=LocalClipboardManager.current
     BackHandler(onBack=onBack)
     Scaffold(containerColor=colors.background,topBar={Row(Modifier.then(if(embedded) Modifier else Modifier.statusBarsPadding()).fillMaxWidth().height(60.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
         IconButton(onClick=onBack) {Glyph(if(embedded && method==null) "x" else "back",colors.onSurface,Modifier.size(22.dp),if(embedded && method==null) "关闭" else "返回")}
@@ -55,7 +58,12 @@ import io.todu.andjs.domain.*
                 Text(group.title,fontSize=12.sp,color=colors.onSurfaceVariant)
                 methods.forEach { entry -> Surface(onClick={onSelect(entry.id)},shape=RoundedCornerShape(16.dp),color=colors.surface) {
                     Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                        Text(entry.signature.substringBefore('('),fontSize=15.sp,fontFamily=FontFamily.Monospace,color=colors.primary)
+                        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                            Text(entry.signature.substringBefore('('),fontSize=15.sp,fontFamily=FontFamily.Monospace,color=colors.primary,modifier=Modifier.weight(1f))
+                            IconButton(onClick={clipboard.setText(AnnotatedString(entry.signature.substringBefore('(')))},modifier=Modifier.size(32.dp)) {
+                                Glyph("copy",colors.onSurfaceVariant,Modifier.size(18.dp),"复制方法名")
+                            }
+                        }
                         Text(entry.summary,fontSize=13.sp)
                         Text(entry.devices,fontSize=11.sp,color=colors.onSurfaceVariant)
                     }

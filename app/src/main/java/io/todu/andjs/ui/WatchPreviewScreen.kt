@@ -160,7 +160,7 @@ import java.io.File
         items.forEachIndexed {index,document->
             val angle=if(items.size==1) 0.0 else (index+.5)*2*PI/items.size
             Glyph(document.item.icon,Color(scriptColorPair(document.item.color).second),
-                Modifier.offset((sin(angle)*(radius-thickness/2+20f)).dp,(-cos(angle)*(radius-thickness/2+20f)).dp).size(28.dp).clickable {feedbackView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);onRun(document)}.padding(4.dp),document.item.name)
+                Modifier.offset((sin(angle)*(radius-thickness/2+16f)).dp,(-cos(angle)*(radius-thickness/2+16f)).dp).size(28.dp).clickable {feedbackView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);onRun(document)}.padding(4.dp),document.item.name)
         }
         Column(horizontalAlignment=Alignment.CenterHorizontally,modifier=Modifier.clickable(onClick=onOpen)) {
             Image(painterResource(R.drawable.app_symbol),"打开 And JS",Modifier.size(width=50.dp,height=34.dp))

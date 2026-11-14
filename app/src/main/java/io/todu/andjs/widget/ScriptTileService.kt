@@ -47,7 +47,7 @@ class ScriptTileService:TileService() {
             val image=Image.Builder().setResourceId("icon-${item.id}").setWidth(dp(20f)).setHeight(dp(20f))
                 .setColorFilter(ColorFilter.Builder().setTint(argb(colors.second.toInt())).build())
                 .setModifiers(Modifiers.Builder().setClickable(click(item.id)).setSemantics(Semantics.Builder().setContentDescription(item.name).build()).build()).build()
-            ring.addContent(Box.Builder().setWidth(dp(size-8-2*thickness+68)).setHeight(dp(size-8-2*thickness+68)).addContent(Arc.Builder().setAnchorAngle(degrees(angle)).setAnchorType(ARC_ANCHOR_CENTER)
+            ring.addContent(Box.Builder().setWidth(dp(size-8-2*thickness+60)).setHeight(dp(size-8-2*thickness+60)).addContent(Arc.Builder().setAnchorAngle(degrees(angle)).setAnchorType(ARC_ANCHOR_CENTER)
                 .addContent(ArcAdapter.Builder().setRotateContents(false).setContent(Box.Builder().setWidth(dp(28f)).setHeight(dp(28f)).addContent(image).build()).build()).build()).build())
         }
         ring.addContent(Column.Builder()
@@ -59,7 +59,7 @@ class ScriptTileService:TileService() {
         return Futures.immediateFuture(TileBuilders.Tile.Builder().setResourcesVersion(version())
             .setTileTimeline(TimelineBuilders.Timeline.Builder().addTimelineEntry(TimelineBuilders.TimelineEntry.Builder().setLayout(Layout.Builder().setRoot(root).build()).build()).build()).build())
     }
-    private fun version()=io.todu.andjs.wear.WatchSnapshot.hash("ring-v12:"+io.todu.andjs.BuildConfig.VERSION_NAME+":"+items().joinToString {"${it.id}:${it.icon}:${it.color}:${it.name}"})
+    private fun version()=io.todu.andjs.wear.WatchSnapshot.hash("ring-v13:"+io.todu.andjs.BuildConfig.VERSION_NAME+":"+items().joinToString {"${it.id}:${it.icon}:${it.color}:${it.name}"})
     override fun onTileResourcesRequest(requestParams:RequestBuilders.ResourcesRequest):ListenableFuture<ResourceBuilders.Resources> {
         val resources=ResourceBuilders.Resources.Builder().setVersion(version())
         resources.addIdToImageMapping("app",ResourceBuilders.ImageResource.Builder().setAndroidResourceByResId(ResourceBuilders.AndroidImageResourceByResId.Builder().setResourceId(R.drawable.app_symbol).build()).build())
