@@ -1,4 +1,4 @@
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="0dp">
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:padding="10dp" android:background="@drawable/widget_panel">
     <LinearLayout android:id="@+id/widget_rows" android:orientation="vertical" android:layout_width="match_parent" android:layout_height="match_parent"/>
-    <ImageView android:id="@+id/widget_empty" android:layout_width="48dp" android:layout_height="48dp" android:layout_gravity="center" android:src="@drawable/app_badge" android:contentDescription="打开 And JS"/>
+    <ImageView android:id="@+id/widget_empty" android:layout_width="64dp" android:layout_height="64dp" android:layout_gravity="center" android:src="@drawable/app_symbol" android:contentDescription="打开 And JS"/>
 </FrameLayout>

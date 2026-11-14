@@ -52,11 +52,18 @@ open class ScriptWidgetProvider:AppWidgetProvider() {
         }
         private fun refreshNow(context:Context) {
             val manager=AppWidgetManager.getInstance(context)
-            listOf(ScriptWidgetProvider::class.java,LargeScriptWidgetProvider::class.java,HorizontalScriptWidgetProvider::class.java,VerticalScriptWidgetProvider::class.java,WideScriptWidgetProvider::class.java).forEach {type->
+            listOf(ScriptWidgetProvider::class.java,LargeScriptWidgetProvider::class.java,HorizontalScriptWidgetProvider::class.java,VerticalScriptWidgetProvider::class.java,WideScriptWidgetProvider::class.java,PortraitScriptWidgetProvider::class.java,LandscapeScriptWidgetProvider::class.java).forEach {type->
                 if(manager.getAppWidgetIds(ComponentName(context,type)).isNotEmpty()) context.sendBroadcast(Intent(context,type).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE))
             }
         }
         fun launch(context:Context,id:String?=null):PendingIntent {
+            if(id!=null && !(context.applicationContext as AndJsApplication).isWatch && android.provider.Settings.canDrawOverlays(context)) {
+                val intent=Intent(context,OverlayRunService::class.java).setData(android.net.Uri.parse("andjs://overlay/"+id)).putExtra(RUN_ID,id).putExtra(TOKEN,token(context))
+                return PendingIntent.getForegroundService(context,0,intent,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            }
+            return launchActivity(context,id)
+        }
+        fun launchActivity(context:Context,id:String?=null):PendingIntent {
             val intent=Intent(context,MainActivity::class.java).setAction(if(id==null) Intent.ACTION_MAIN else "io.todu.andjs.RUN_WIDGET")
                 .setData(android.net.Uri.parse("andjs://widget/"+(id ?: "app")))
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -99,3 +106,6 @@ class LargeScriptWidgetProvider:ScriptWidgetProvider() {override val rows=4}
 class HorizontalScriptWidgetProvider:ScriptWidgetProvider() {override val rows=1}
 class VerticalScriptWidgetProvider:ScriptWidgetProvider() {override val columns=1}
 class WideScriptWidgetProvider:ScriptWidgetProvider() {override val columns=4}
+
+class PortraitScriptWidgetProvider:ScriptWidgetProvider() {override val rows=3}
+class LandscapeScriptWidgetProvider:ScriptWidgetProvider() {override val columns=3}

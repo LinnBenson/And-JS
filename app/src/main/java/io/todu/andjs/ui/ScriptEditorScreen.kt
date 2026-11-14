@@ -28,7 +28,7 @@ import io.todu.andjs.domain.*
 import io.todu.andjs.runtime.ParameterValues
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable fun ScriptEditorScreen(document: ScriptDocument,categories:List<ScriptCategory>,onDismiss:()->Unit,onSave:(ScriptDocument)->Unit) {
+@Composable fun ScriptEditorScreen(document: ScriptDocument,categories:List<ScriptCategory>,onDismiss:()->Unit,onSave:(ScriptDocument)->Unit,onRun:(ScriptDocument,(List<ScriptParameter>)->Unit)->Unit) {
     var name by rememberSaveable(document.item.id) {mutableStateOf(document.item.name)}
     var source by rememberSaveable(document.item.id) {mutableStateOf(document.source)}
     var category by rememberSaveable(document.item.id) {mutableStateOf(document.item.category)}
@@ -118,6 +118,7 @@ import io.todu.andjs.runtime.ParameterValues
             IconButton(onClick={apiMethod=null;showApi=true}) {Glyph("help",colors.primary,Modifier.size(22.dp),"接口帮助")}
             IconButton(onClick=::chooseImport,enabled=!transferring) {Glyph("download",if(transferring) colors.onSurface.copy(alpha=.38f) else colors.primary,Modifier.size(22.dp),"导入 JS")}
             IconButton(onClick=::chooseExport,enabled=!transferring) {Glyph("upload",if(transferring) colors.onSurface.copy(alpha=.38f) else colors.primary,Modifier.size(22.dp),"导出 JS")}
+            IconButton(onClick={validation=ParameterValues.error(parameters);if(validation==null) {focusManager.clearFocus();onRun(ScriptDocument(document.item.copy(name=name.trim().ifBlank {"未命名脚本"},category=category,icon=icon,parameters=parameters,color=color),source)) {parameters=it}}},enabled=!transferring) {Glyph("play",colors.primary,Modifier.size(22.dp),"运行当前脚本")}
             IconButton(onClick={validation=ParameterValues.error(parameters); if(validation==null) onSave(ScriptDocument(document.item.copy(name=name.trim(),category=category,icon=icon,parameters=parameters,color=color),source))},enabled=!transferring && name.isNotBlank() && name.length<=40) {Glyph("save",if(!transferring && name.isNotBlank() && name.length<=40) colors.primary else colors.onSurface.copy(alpha=.38f),Modifier.size(22.dp),"保存")}
         }
     }) { padding ->

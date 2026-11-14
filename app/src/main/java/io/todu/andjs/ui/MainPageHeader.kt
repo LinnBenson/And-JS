@@ -18,7 +18,7 @@ import io.todu.andjs.R
 @Composable fun MainPageHeader(title:String,modifier:Modifier=Modifier,onBack:(()->Unit)?=null,actions:@Composable RowScope.()->Unit = {}) {
     Row(modifier.fillMaxWidth().height(68.dp),verticalAlignment=Alignment.CenterVertically) {
         if(onBack==null) {
-            Image(painterResource(R.drawable.app_badge),null,Modifier.size(32.dp).clip(RoundedCornerShape(9.dp)))
+            Icon(painterResource(R.drawable.app_symbol),null,Modifier.size(32.dp),tint=MaterialTheme.colorScheme.primary)
             Spacer(Modifier.width(12.dp))
         } else IconButton(onClick=onBack) {Glyph("back",MaterialTheme.colorScheme.onSurface,Modifier.size(22.dp),"返回")}
         Text(title,fontSize=if(onBack==null) 22.sp else 18.sp,fontWeight=FontWeight.SemiBold,maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.weight(1f))

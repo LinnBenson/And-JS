@@ -21,6 +21,7 @@ import androidx.compose.ui.semantics.semantics
         fun line(vararg p: Float) { val path = Path(); path.moveTo(p[0]*unit,p[1]*unit); for(i in 2 until p.size step 2) path.lineTo(p[i]*unit,p[i+1]*unit); drawPath(path,color,style=Stroke(1.7f*unit,cap=StrokeCap.Round)) }
         fun circle(x:Float,y:Float,r:Float) { drawCircle(color,r*unit,Offset(x*unit,y*unit),style=Stroke(1.7f*unit)) }
         when(name) {
+            "list" -> {for(y in listOf(6f,12f,18f)) {line(3f,y,4f,y);line(8f,y,21f,y)}}
             "layout-grid-filled" -> {for(x in listOf(3f,14f)) for(y in listOf(3f,14f)) drawRoundRect(color,Offset(x*unit,y*unit),androidx.compose.ui.geometry.Size(7f*unit,7f*unit),androidx.compose.ui.geometry.CornerRadius(unit,unit))}
             "layout-grid" -> {for(x in listOf(3f,14f)) for(y in listOf(3f,14f)) line(x,y,x+7,y,x+7,y+7,x,y+7,x,y)}
             "help" -> {

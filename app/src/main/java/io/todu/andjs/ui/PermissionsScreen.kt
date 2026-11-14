@@ -30,6 +30,9 @@ import io.todu.andjs.runtime.AndroidPlatformApi
     val context=LocalContext.current
     val host=remember {AndroidPlatformApi(context)}
     var status by remember {mutableStateOf(host.permissions())}
+    var overlay by remember {mutableStateOf(Settings.canDrawOverlays(context))}
+    var notifications by remember {mutableStateOf(androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled())}
+    val notificationPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {notifications=androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled();(context.applicationContext as io.todu.andjs.AndJsApplication).externalFlow=false}
     var error by remember {mutableStateOf<String?>(null)}
     val health=remember {HealthApi(context)}
     val scope=rememberCoroutineScope()
@@ -39,7 +42,7 @@ import io.todu.andjs.runtime.AndroidPlatformApi
     val healthPermissions=rememberLauncherForActivityResult(PermissionController.createRequestPermissionResultContract()) {refreshHealth()}
     val owner=LocalLifecycleOwner.current
     DisposableEffect(owner) {
-        val observer=LifecycleEventObserver {_,event->if(event==Lifecycle.Event.ON_RESUME) {status=host.permissions();refreshHealth()}}
+        val observer=LifecycleEventObserver {_,event->if(event==Lifecycle.Event.ON_RESUME) {status=host.permissions();overlay=Settings.canDrawOverlays(context);notifications=androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled();io.todu.andjs.widget.ScriptWidgetProvider.refresh(context);refreshHealth()}}
         owner.lifecycle.addObserver(observer);onDispose {owner.lifecycle.removeObserver(observer)}
     }
     val storage=rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {(context.applicationContext as io.todu.andjs.AndJsApplication).externalFlow=false;status=host.permissions()}
@@ -52,6 +55,14 @@ import io.todu.andjs.runtime.AndroidPlatformApi
         IconButton(onClick=onBack) {Glyph("back",MaterialTheme.colorScheme.onSurface,Modifier.size(22.dp),"返回")}
         Text("权限授权",fontSize=18.sp)
     }}) {padding->Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        if(status["watch"]!=true) PermissionRow("悬浮窗","在桌面显示脚本运行弹窗",overlay) {open(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)}
+        PermissionRow("通知","允许脚本发送通知",notifications) {
+            if(Build.VERSION.SDK_INT>=33 && context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED) permissionFlow(context) {notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)}
+            else context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,context.packageName))
+        }
+        PermissionRow("系统操作","无障碍授权，用于最近任务和通知栏",status["accessibility"]==true) {
+            try {context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))} catch(_:Exception) {error="此设备没有无障碍设置"}
+        }
         FitnessPermissionButton()
         ConnectionPermissions()
         PermissionRow("网络访问","用于 HTTPS 请求，无需手动授权",true,null)

@@ -17,6 +17,15 @@ import java.util.concurrent.TimeUnit
 
 /** One cookie session per script; no automatic retries of side-effecting requests. */
 class HttpSession(private val root:File,private val control:RunControl,private val lowMemory:Boolean=false) {
+    companion object {
+        private val cleanedRoots=mutableSetOf<String>()
+        @Synchronized private fun cleanAbandoned(root:File) {
+            if(!cleanedRoots.add(root.canonicalPath)) return
+            root.listFiles()?.filter {it.isFile && (it.name.matches(Regex("andjs-temp-[0-9a-f-]{36}\\.bin")) || it.name.matches(Regex("andjs-part-[0-9]+\\.tmp")))}?.forEach {it.delete()}
+        }
+    }
+    init {cleanAbandoned(root)}
+    private val temporaryFiles=mutableListOf<File>()
     private val cookies=mutableListOf<Cookie>()
     private val jar=object:CookieJar {
         override fun saveFromResponse(url:HttpUrl, incoming:List<Cookie>) = synchronized(cookies) {
@@ -27,7 +36,7 @@ class HttpSession(private val root:File,private val control:RunControl,private v
         }
     }
     private val base=OkHttpClient.Builder().retryOnConnectionFailure(false).cookieJar(jar).build()
-    fun close() { base.connectionPool.evictAll(); base.dispatcher.executorService.shutdown() }
+    fun close() { base.dispatcher.cancelAll();base.connectionPool.evictAll(); base.dispatcher.executorService.shutdown();temporaryFiles.forEach {it.delete()};temporaryFiles.clear();clearCookies() }
     fun clearCookies() {synchronized(cookies) {cookies.clear()}}
     private fun file(name:String):File {
         require(name.matches(Regex("[a-zA-Z0-9_.-]{1,120}")) && name!="." && name!="..") {"文件名只能包含字母、数字、点、横线和下划线"}
@@ -96,12 +105,13 @@ class HttpSession(private val root:File,private val control:RunControl,private v
         try {
             call.execute().use {response->
                 val headers=JSONObject();response.headers.names().forEach {headers.put(it.lowercase(java.util.Locale.ROOT),JSONArray(response.headers.values(it)))}
-                val result=JSONObject().put("status",response.code).put("statusText",response.message).put("ok",response.isSuccessful)
+                val result=JSONObject().put("isJson",false).put("isFile",false).put("status",response.code).put("statusText",response.message).put("ok",response.isSuccessful)
                     .put("url",response.request.url.toString()).put("headers",headers).put("contentType",response.body?.contentType()?.toString() ?: "")
                 if(o.optBoolean("throwOnHttpError",false) && !response.isSuccessful) throw java.io.IOException("HTTP ${response.code} ${response.message}")
-                val destination=if(responseType=="file") file(o.optString("filename",UUID.randomUUID().toString()+".bin")) else null
+                if(o.has("filename")) require(!o.getString("filename").startsWith("andjs-temp-") && !o.getString("filename").startsWith("andjs-part-")) {"文件名使用了临时文件保留前缀"}
+                val destination=if(responseType=="file") file(o.optString("filename","andjs-temp-"+UUID.randomUUID().toString()+".bin")).also {if(!o.has("filename")) temporaryFiles.add(it)} else null
                 if(destination!=null) require(!destination.exists() || o.optBoolean("overwrite",false)) {"下载文件已存在"}
-                val temp=destination?.let {File.createTempFile("download-",".tmp",root)}
+                val temp=destination?.let {File.createTempFile("andjs-part-",".tmp",root)}
                 var count=0L
                 try {
                     val memory=if(temp==null) ByteArrayOutputStream() else null
@@ -119,7 +129,7 @@ class HttpSession(private val root:File,private val control:RunControl,private v
                     if(temp!=null) {
                         if(o.optBoolean("overwrite",false)) Files.move(temp.toPath(),destination.toPath(),StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE)
                         else Files.move(temp.toPath(),destination.toPath())
-                        result.put("file",destination.name)
+                        result.put("file",destination.name).put("isFile",response.isSuccessful)
                     } else {
                         val bytes=memory!!.toByteArray()
                         if(responseType=="base64") result.put("base64",Base64.getEncoder().encodeToString(bytes))

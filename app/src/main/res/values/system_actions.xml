@@ -1,0 +1,4 @@
+<resources>
+    <string name="system_actions_label">And JS 系统操作</string>
+    <string name="system_actions_description">允许脚本打开最近任务和通知栏。不读取屏幕内容，不收集操作记录。关闭此服务后，这两个接口不可用。</string>
+</resources>

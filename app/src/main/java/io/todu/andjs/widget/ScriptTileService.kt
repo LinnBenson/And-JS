@@ -30,30 +30,39 @@ class ScriptTileService:TileService() {
         val ring=Box.Builder().setWidth(dp(size-8)).setHeight(dp(size-8))
         items.forEachIndexed {index,item->
             val angle=if(items.size==1) 0f else (index+.5f)*360f/items.size
-            // Round caps extend beyond both arc endpoints; reserve their width too.
-            val radius=(size-8-28)/2f
-            val gap=Math.toDegrees(2.0*kotlin.math.asin((28.0+6.0)/(2.0*radius))).toFloat()
+            // Straight arc ends leave a narrow 3 dp gap between items.
+            val thickness=size*.21f
+            val radius=(size-8-thickness)/2f
+            val gap=Math.toDegrees(3.0/radius).toFloat()
             val sweep=360f/items.size-gap
             val colors=scriptColorPair(item.color)
             ring.addContent(Arc.Builder().setAnchorAngle(degrees(angle)).setAnchorType(ARC_ANCHOR_CENTER)
-                .addContent(ArcLine.Builder().setLength(degrees(sweep)).setThickness(dp(28f)).setColor(argb(colors.first.toInt()))
+                .addContent(ArcLine.Builder().setStrokeCap(STROKE_CAP_BUTT).setLength(degrees(sweep)).setThickness(dp(thickness)).setColor(argb(colors.first.toInt()))
                     .setModifiers(ArcModifiers.Builder().setClickable(click(item.id)).build()).build()).build())
+            val label=io.todu.andjs.ui.watchTileLabel(item.name,360f/items.size-gap-4f,radius+thickness/2-15)
+            ring.addContent(Box.Builder().setWidth(dp(size-24)).setHeight(dp(size-24)).addContent(Arc.Builder().setAnchorAngle(degrees(angle)).setAnchorType(ARC_ANCHOR_CENTER)
+                .addContent(ArcText.Builder().setText(label)
+                    .setFontStyle(FontStyle.Builder().setSize(sp(11f)).setColor(argb(colors.second.toInt())).build())
+                    .setModifiers(ArcModifiers.Builder().setClickable(click(item.id)).build()).build()).build()).build())
             val image=Image.Builder().setResourceId("icon-${item.id}").setWidth(dp(20f)).setHeight(dp(20f))
                 .setColorFilter(ColorFilter.Builder().setTint(argb(colors.second.toInt())).build())
                 .setModifiers(Modifiers.Builder().setClickable(click(item.id)).setSemantics(Semantics.Builder().setContentDescription(item.name).build()).build()).build()
-            ring.addContent(Arc.Builder().setAnchorAngle(degrees(angle)).setAnchorType(ARC_ANCHOR_CENTER)
-                .addContent(ArcAdapter.Builder().setRotateContents(false).setContent(Box.Builder().setWidth(dp(28f)).setHeight(dp(28f)).addContent(image).build()).build()).build())
+            ring.addContent(Box.Builder().setWidth(dp(size-8-2*thickness+68)).setHeight(dp(size-8-2*thickness+68)).addContent(Arc.Builder().setAnchorAngle(degrees(angle)).setAnchorType(ARC_ANCHOR_CENTER)
+                .addContent(ArcAdapter.Builder().setRotateContents(false).setContent(Box.Builder().setWidth(dp(28f)).setHeight(dp(28f)).addContent(image).build()).build()).build()).build())
         }
-        ring.addContent(Image.Builder().setResourceId("app").setWidth(dp(44f)).setHeight(dp(44f))
-            .setModifiers(Modifiers.Builder().setClickable(click(null)).setSemantics(Semantics.Builder().setContentDescription("打开 And JS").build()).build()).build())
+        ring.addContent(Column.Builder()
+            .setModifiers(Modifiers.Builder().setClickable(click(null)).setSemantics(Semantics.Builder().setContentDescription("打开 And JS").build()).build())
+            .addContent(Image.Builder().setResourceId("app").setWidth(dp(50f)).setHeight(dp(34f)).build())
+            .addContent(Spacer.Builder().setHeight(dp(4f)).build())
+            .addContent(Text.Builder().setText("v"+io.todu.andjs.BuildConfig.VERSION_NAME).setFontStyle(FontStyle.Builder().setSize(sp(10f)).setColor(argb(0xFF9CA497.toInt())).build()).build()).build())
         val root=Box.Builder().setWidth(expand()).setHeight(expand()).setModifiers(Modifiers.Builder().setBackground(Background.Builder().setColor(argb(0xFF000000.toInt())).build()).build()).addContent(ring.build()).build()
         return Futures.immediateFuture(TileBuilders.Tile.Builder().setResourcesVersion(version())
             .setTileTimeline(TimelineBuilders.Timeline.Builder().addTimelineEntry(TimelineBuilders.TimelineEntry.Builder().setLayout(Layout.Builder().setRoot(root).build()).build()).build()).build())
     }
-    private fun version()=io.todu.andjs.wear.WatchSnapshot.hash("ring-v4:"+items().joinToString {"${it.id}:${it.icon}:${it.color}"})
+    private fun version()=io.todu.andjs.wear.WatchSnapshot.hash("ring-v12:"+io.todu.andjs.BuildConfig.VERSION_NAME+":"+items().joinToString {"${it.id}:${it.icon}:${it.color}:${it.name}"})
     override fun onTileResourcesRequest(requestParams:RequestBuilders.ResourcesRequest):ListenableFuture<ResourceBuilders.Resources> {
         val resources=ResourceBuilders.Resources.Builder().setVersion(version())
-        resources.addIdToImageMapping("app",ResourceBuilders.ImageResource.Builder().setAndroidResourceByResId(ResourceBuilders.AndroidImageResourceByResId.Builder().setResourceId(R.drawable.app_badge).build()).build())
+        resources.addIdToImageMapping("app",ResourceBuilders.ImageResource.Builder().setAndroidResourceByResId(ResourceBuilders.AndroidImageResourceByResId.Builder().setResourceId(R.drawable.app_symbol).build()).build())
         items().forEach {item->resources.addIdToImageMapping("icon-${item.id}",ResourceBuilders.ImageResource.Builder().setAndroidResourceByResId(ResourceBuilders.AndroidImageResourceByResId.Builder().setResourceId(AppIcons.resource(item.icon) ?: R.drawable.ic_code).build()).build())}
         return Futures.immediateFuture(resources.build())
     }

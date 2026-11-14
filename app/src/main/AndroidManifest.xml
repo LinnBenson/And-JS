@@ -23,6 +23,10 @@
     <uses-permission android:name="android.permission.health.READ_WEIGHT"/>
     <uses-permission android:name="android.permission.BODY_SENSORS" />
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <application android:requestLegacyExternalStorage="true" android:name=".AndJsApplication" android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules" android:label="And JS" android:icon="@mipmap/ic_launcher" android:theme="@style/Theme.AndJS" android:supportsRtl="true">
         <receiver android:name=".widget.ScriptWidgetProvider" android:exported="false" android:label="And JS · 2×2">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
@@ -65,5 +69,20 @@
         <activity android:name=".MainActivity" android:launchMode="singleTop" android:exported="true" android:windowSoftInputMode="adjustResize">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
         </activity>
+        <receiver android:name=".widget.PortraitScriptWidgetProvider" android:exported="false" android:label="And JS · 2×3">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_portrait"/>
+        </receiver>
+        <receiver android:name=".widget.LandscapeScriptWidgetProvider" android:exported="false" android:label="And JS · 3×2">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_landscape"/>
+        </receiver>
+        <service android:name=".widget.OverlayRunService" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-triggered JavaScript execution with a visible interactive overlay; stopped when closed."/>
+        </service>
+    <service android:name=".runtime.SystemActionsService" android:label="@string/system_actions_label" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:exported="true">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/system_actions_accessibility" />
+        </service>
     </application>
 </manifest>

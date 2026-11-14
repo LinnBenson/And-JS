@@ -29,7 +29,7 @@ import io.todu.andjs.runtime.ScriptInteraction
         val colors=MaterialTheme.colorScheme
         val cancel={request.respond(null)}
         val maxHeight=(LocalConfiguration.current.screenHeightDp*.8f).dp
-        Dialog(onDismissRequest=cancel,properties=DialogProperties(usePlatformDefaultWidth=false,dismissOnClickOutside=false)) {
+        ModalHost(onDismiss=cancel) {
             Surface(modifier=Modifier.padding(horizontal=28.dp).widthIn(max=400.dp).fillMaxWidth().heightIn(max=maxHeight),shape=RoundedCornerShape(24.dp),color=colors.background) {
                 Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                     Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {

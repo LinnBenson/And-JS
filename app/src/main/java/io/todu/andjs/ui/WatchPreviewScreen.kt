@@ -1,6 +1,22 @@
 package io.todu.andjs.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.painterResource
+import androidx.compose.runtime.saveable.rememberSaveable
+import io.todu.andjs.R
+import io.todu.andjs.domain.ScriptDocument
+import kotlin.math.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -29,6 +45,7 @@ import java.io.File
     val models=remember {ViewModelStore()}
     var model by remember {mutableStateOf<WatchViewModel?>(null)}
     var error by remember {mutableStateOf<String?>(null)}
+    var widgetPreview by rememberSaveable {mutableStateOf(false)}
     var revision by remember {mutableIntStateOf(0)}
     DisposableEffect(owner) {
         val observer=LifecycleEventObserver {_,event->if(event==Lifecycle.Event.ON_STOP) model?.background()}
@@ -70,10 +87,20 @@ import java.io.File
         IconButton(onClick={revision++}) {Glyph("repeat",MaterialTheme.colorScheme.primary,Modifier.size(22.dp),"重新加载脚本")}
     }}) {padding->
         BoxWithConstraints(Modifier.padding(padding).fillMaxSize()) {
-            val diameter=minOf(300.dp,maxWidth-40.dp,maxHeight-100.dp).coerceAtLeast(160.dp)
-            Column(Modifier.fillMaxSize().padding(20.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center) {
+            val diameter=minOf(300.dp,maxWidth-40.dp,maxHeight-164.dp).coerceAtLeast(160.dp)
+            Row(Modifier.align(Alignment.TopCenter).padding(top=16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                FilterChip(selected=!widgetPreview,onClick={model?.background();widgetPreview=false},label={Text("主界面")})
+                FilterChip(selected=widgetPreview,onClick={model?.background();widgetPreview=true},label={Text("小部件")})
+            }
+            Column(Modifier.fillMaxSize().padding(top=64.dp).padding(20.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center) {
                 Box(Modifier.size(diameter).border(4.dp,Color(0xFF383C39),CircleShape).padding(4.dp).clip(CircleShape).background(Color.Black)) {
-                    model?.let {WatchScreen(it,preview=true,onHome=onBack)} ?: Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) {
+                    model?.let {watch->
+                        val snapshot by watch.snapshot.collectAsState()
+                        val execution by watch.execution.collectAsState()
+                        if(widgetPreview && execution==null) WatchWidgetPreview(snapshot.scripts.filter {it.item.widget}.take(8),
+                            onRun=watch::run,onOpen={widgetPreview=false})
+                        else WatchScreen(watch,preview=true,onHome={watch.background();if(!widgetPreview) onBack()})
+                    } ?: Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) {
                         if(error==null) CircularProgressIndicator() else Text(error!!,color=Color.White,modifier=Modifier.padding(24.dp),fontSize=13.sp)
                     }
                 }
@@ -81,6 +108,64 @@ import java.io.File
                 Text("加载手表栏目所选脚本，无需同步",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("变量与文件独立，硬件信息来自手机",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
+        }
+    }
+}
+
+@Composable private fun WatchWidgetPreview(items:List<ScriptDocument>,onRun:(ScriptDocument)->Unit,onOpen:()->Unit) {
+    val feedbackView=androidx.compose.ui.platform.LocalView.current
+    BoxWithConstraints(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) {
+        val diameter=minOf(maxWidth,maxHeight)
+        val thickness=diameter.value*.21f
+        val radius=(diameter.value-8f-thickness)/2f
+        val gap=Math.toDegrees(3.0/radius).toFloat()
+        Canvas(Modifier.fillMaxSize().pointerInput(items) {
+            detectTapGestures {point->
+                val x=point.x-size.width/2f;val y=point.y-size.height/2f
+                val distance=sqrt(x*x+y*y)
+                val r=radius.dp.toPx()
+                if(items.isNotEmpty() && abs(distance-r)<=(thickness/2).dp.toPx()) {
+                    val angle=((Math.toDegrees(atan2(x.toDouble(),-y.toDouble()))+360)%360).toFloat()
+                    val step=360f/items.size
+                    val index=if(items.size==1) 0 else (angle/step).toInt().coerceAtMost(items.lastIndex)
+                    val center=if(items.size==1) 0f else (index+.5f)*step
+                    val delta=abs((angle-center+540f)%360f-180f)
+                    if(delta<=(step-gap)/2f) {feedbackView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);onRun(items[index])}
+                }
+            }
+        }) {
+            val r=radius.dp.toPx()
+            items.forEachIndexed {index,document->
+                val sweep=360f/items.size-gap
+                val angle=if(items.size==1) 0f else (index+.5f)*360f/items.size
+                drawArc(Color(scriptColorPair(document.item.color).first),angle-90f-sweep/2f,sweep,false,
+                    topLeft=Offset(center.x-r,center.y-r),size=Size(r*2,r*2),style=Stroke(thickness.dp.toPx(),cap=StrokeCap.Butt))
+                drawIntoCanvas {canvas->
+                    val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        color=scriptColorPair(document.item.color).second.toInt()
+                        textSize=11.dp.toPx()
+                        textAlign=android.graphics.Paint.Align.LEFT
+                    }
+                    val textRadius=r+(thickness/2-15).dp.toPx()
+                    val textSweep=360f/items.size-gap-4f
+                    val label=watchTileLabel(document.item.name,textSweep,textRadius/density)
+                    val path=android.graphics.Path().apply {
+                        addArc(center.x-textRadius,center.y-textRadius,center.x+textRadius,center.y+textRadius,angle-90f-textSweep/2f,textSweep)
+                    }
+                    canvas.nativeCanvas.drawTextOnPath(label,path,
+                        ((Math.toRadians(textSweep.toDouble())*textRadius-paint.measureText(label))/2).toFloat(),0f,paint)
+                }
+            }
+        }
+        items.forEachIndexed {index,document->
+            val angle=if(items.size==1) 0.0 else (index+.5)*2*PI/items.size
+            Glyph(document.item.icon,Color(scriptColorPair(document.item.color).second),
+                Modifier.offset((sin(angle)*(radius-thickness/2+20f)).dp,(-cos(angle)*(radius-thickness/2+20f)).dp).size(28.dp).clickable {feedbackView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);onRun(document)}.padding(4.dp),document.item.name)
+        }
+        Column(horizontalAlignment=Alignment.CenterHorizontally,modifier=Modifier.clickable(onClick=onOpen)) {
+            Image(painterResource(R.drawable.app_symbol),"打开 And JS",Modifier.size(width=50.dp,height=34.dp))
+            Spacer(Modifier.height(4.dp))
+            Text("v"+io.todu.andjs.BuildConfig.VERSION_NAME,color=Color(0xFF9CA497),fontSize=10.sp)
         }
     }
 }

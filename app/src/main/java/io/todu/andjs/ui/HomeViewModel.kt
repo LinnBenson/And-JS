@@ -118,7 +118,7 @@ class HomeViewModel(private val repository: ScriptRepository, private val runner
     fun background() {background=true;stopRun();interaction.value?.respond(null);interaction.value=null;execution.value=null}
     fun closeRun() {if(execution.value?.running!=true) execution.value=null}
     override fun onCleared() {stopRun();super.onCleared()}
-    fun run(item: Script) {
+    fun run(item: Script, draftSource:String?=null,onDraftParameters:((List<ScriptParameter>)->Unit)?=null) {
         if(runControl!=null) return
         background=false
         var latestItem=item
@@ -126,9 +126,13 @@ class HomeViewModel(private val repository: ScriptRepository, private val runner
             kotlinx.coroutines.runBlocking {
                 if(namespace=="value") {
                     val updated=latestItem.copy(parameters=values)
-                    repository.save(ScriptDocument(updated,repository.read(item.id)))
+                    if(draftSource==null) repository.save(ScriptDocument(updated,repository.read(item.id)))
+                    else {
+                        repository.load().find {it.id==item.id}?.let {saved->repository.save(ScriptDocument(saved.copy(parameters=values),repository.read(item.id)))}
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {onDraftParameters?.invoke(values)}
+                    }
                     latestItem=updated
-                    mutable.update {state->state.copy(items=state.items.map {if(it.id==item.id) updated else it})}
+                    mutable.update {state->state.copy(items=state.items.map {if(it.id==item.id) it.copy(parameters=values) else it})}
                 } else {
                     globalRepository.save(values)
                     if(globals.value!=null) globals.value=values
@@ -138,7 +142,7 @@ class HomeViewModel(private val repository: ScriptRepository, private val runner
         });runControl=control
         execution.value=Execution(item.name,icon=item.icon,color=item.color)
         viewModelScope.launch {
-            val result=try {runner.run(repository.read(item.id),item.parameters,globalRepository.load(),control) {logs->execution.update {it?.copy(logs=logs)}}}
+            val result=try {runner.run(draftSource ?: repository.read(item.id),item.parameters,globalRepository.load(),control) {logs->execution.update {it?.copy(logs=logs)}}}
                 catch(e:Exception) {RunResult("",emptyList(),"无法运行脚本："+(e.message ?: "读取失败"))}
             execution.value=if(background) null else Execution(item.name,false,result,item.icon,item.color,result.logs)
             runControl=null

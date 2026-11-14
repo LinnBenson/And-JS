@@ -29,6 +29,9 @@ class AndroidPlatformApi(private val context:Context):PlatformApi {
     private val audio=context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     fun permissions():Map<String,Any> = mapOf(
         "internet" to true,
+        "accessibility" to SystemActionsService.available(),
+        "overlay" to (!watch && Settings.canDrawOverlays(context)),
+        "notifications" to context.getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled(),
         "watch" to watch,
         "writeSettings" to Settings.System.canWrite(context),
         "sharedFiles" to (!watch && if(Build.VERSION.SDK_INT>=30) Environment.isExternalStorageManager() else context.checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)==PackageManager.PERMISSION_GRANTED),
@@ -61,6 +64,22 @@ class AndroidPlatformApi(private val context:Context):PlatformApi {
                 else->error("未知方法")
             }
             "system"->when(method) {
+                "openRecents"->SystemActionsService.perform(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_RECENTS)
+                "openNotificationShade"->SystemActionsService.perform(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS)
+                "toast"->{
+                    val text=string(0);require(text.isNotBlank() && text.length<=2000) {"提示内容须为 1–2000 字符"}
+                    val duration=string(1,"short");require(duration in listOf("short","long")) {"时长须为 short 或 long"}
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        android.widget.Toast.makeText(context.applicationContext,text,if(duration=="long") android.widget.Toast.LENGTH_LONG else android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    true
+                }
+                "returnToWatchFace"->{
+                    require(watch) {"仅手表支持返回表盘"}
+                    context.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    true
+                }
+                "notify","cancelNotification"->ScriptNotifications.call(context,method,args)
                 "setAutoBrightness","getScreenTimeout","setScreenTimeout","getRotation","setRotation","vibrate","cancelVibration"->DeviceControls(context).call(namespace,method,args)
                 "getBrightness"->mapOf("value" to Settings.System.getInt(context.contentResolver,Settings.System.SCREEN_BRIGHTNESS,128),"automatic" to (Settings.System.getInt(context.contentResolver,Settings.System.SCREEN_BRIGHTNESS_MODE,0)==Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC))
                 "setBrightness"->{

@@ -41,7 +41,7 @@ import androidx.compose.ui.window.DialogProperties
     val resultText=run.result?.error ?: run.result?.output.orEmpty()
     val hasResult=resultText.isNotEmpty()
     val height=(LocalConfiguration.current.screenHeightDp * .84f).dp.coerceAtMost(620.dp)
-    Dialog(onDismissRequest={if(!run.running) onClose()},properties=DialogProperties(usePlatformDefaultWidth=false,dismissOnClickOutside=false,dismissOnBackPress=!run.running)) {
+    ModalHost(onDismiss={if(!run.running) onClose()},backEnabled=!run.running) {
         Surface(modifier=Modifier.padding(horizontal=24.dp).widthIn(max=440.dp).fillMaxWidth().height(height),shape=RoundedCornerShape(24.dp),color=colors.background) {
             Column(Modifier.fillMaxSize().padding(20.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 Text(run.name,fontSize=18.sp,maxLines=1,overflow=TextOverflow.Ellipsis)

@@ -76,7 +76,7 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                 fun js(value:Any?):Any? = when(value) {
                     null -> null
                     is List<*> -> cx.newArray(scope,value.map {js(it)}.toTypedArray())
-                    is Map<*,*> -> cx.newObject(scope).also {o->value.forEach {(k,v)->ScriptableObject.putProperty(o,k.toString(),js(v))}}
+                    is Map<*,*> -> cx.newObject(scope).also {o->value.forEach {(k,v)->(o as ScriptableObject).defineProperty(k.toString(),js(v),ScriptableObject.EMPTY)}}
                     else -> value
                 }
                 // JSON.stringify handles arrays and objects; fall back to string conversion for circular values.
@@ -97,6 +97,9 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                     fun key(args:Array<out Any?>):String {
                         require(args.firstOrNull() is CharSequence) {"键必须为字符串"}
                         return args[0].toString().also {require(it.isNotBlank() && it.length<=200) {"键须为 1–200 字符"}}
+                    }
+                    function(target,"all") {
+                        js(current.associate {it.key to ParameterValues.parse(it)})
                     }
                     function(target,"get") {args->
                         val name=key(args)
@@ -242,9 +245,9 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                     if(responseType=="json" || responseType=="auto") {
                         val text=response.optString("text").removePrefix("\uFEFF").trim()
                         val data=if(responseType=="json") {
-                            if(text.isEmpty()) null else NativeJSON.parse(cx,scope,text,Callable {_,_,_,v->v[1]})
+                            if(text.isEmpty()) null else NativeJSON.parse(cx,scope,text,Callable {_,_,_,v->v[1]}).also {ScriptableObject.putProperty(result,"isJson",response.optBoolean("ok"))}
                         } else {
-                            try { NativeJSON.parse(cx,scope,text,Callable {_,_,_,v->v[1]}) }
+                            try { NativeJSON.parse(cx,scope,text,Callable {_,_,_,v->v[1]}).also {ScriptableObject.putProperty(result,"isJson",response.optBoolean("ok"))} }
                             catch(_:RhinoException) {response.optString("text")}
                         }
                         ScriptableObject.putProperty(result,"data",data)
@@ -298,7 +301,7 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                     Undefined.instance
                 }
                 platform?.let {host->
-                    listOf("health" to listOf("status","current","summary","read"),"device" to listOf("info","battery","network","memory","storage","screen","power","sensors","vibrator","location","locationStatus","wifi","bluetooth"),"system" to listOf("getBrightness","setBrightness","getVolume","setVolume","openSettings","setAutoBrightness","getScreenTimeout","setScreenTimeout","getRotation","setRotation","vibrate","cancelVibration"),"files" to listOf("read","write","append","exists","list","mkdir","delete","copy","move","info"),"permissions" to listOf("status")).forEach {(space,methods)->
+                    listOf("health" to listOf("status","current","summary","read"),"device" to listOf("info","battery","network","memory","storage","screen","power","sensors","vibrator","location","locationStatus","wifi","bluetooth"),"system" to listOf("getBrightness","setBrightness","getVolume","setVolume","openSettings","setAutoBrightness","getScreenTimeout","setScreenTimeout","getRotation","setRotation","vibrate","cancelVibration","notify","cancelNotification","toast","returnToWatchFace","openRecents","openNotificationShade"),"files" to listOf("read","write","append","exists","list","mkdir","delete","copy","move","info"),"permissions" to listOf("status")).forEach {(space,methods)->
                         val target=objectValue(api,space)
                         methods.forEach {name->function(target,name) {args->
                             val json=Context.toString(NativeJSON.stringify(cx,scope,cx.newArray(scope,args),null,null))
@@ -310,6 +313,22 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                             js(result)
                         }}
                     }
+                }
+                function(api,"text") {args->
+                    val lines=args.firstOrNull()
+                    require(lines is NativeArray) {"text 参数必须为数组"}
+                    val limit=if(lowMemory) 256_000 else 1_000_000
+                    require(lines.length<=limit) {"数组过长"}
+                    val text=StringBuilder()
+                    for(i in 0 until lines.length.toInt()) {
+                        checkRun()
+                        val value=ScriptableObject.getProperty(lines,i)
+                        val part=if(value==null || value is Undefined || value===Scriptable.NOT_FOUND) "" else Context.toString(value)
+                        require(text.length.toLong()+part.length+(if(i>0) 1 else 0)<=limit) {"拼接文本过长"}
+                        if(i>0) text.append('\n')
+                        text.append(part)
+                    }
+                    text.toString()
                 }
                 val util=objectValue(api,"util")
                 function(util,"isJson") {args->

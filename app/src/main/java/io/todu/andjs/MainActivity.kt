@@ -62,7 +62,7 @@ class MainActivity : ComponentActivity() {
                 })
                 androidx.compose.runtime.LaunchedEffect(widgetRequest.value) {
                     val id=widgetRequest.value
-                    if(id!=null) {widgetRequest.value=null;app.watchStore.state.value.scripts.find {it.item.id==id && it.item.widget}?.let {watch.run(it)}}
+                    if(id!=null) {widgetRequest.value=null;app.watchStore.state.value.scripts.find {it.item.id==id && it.item.widget}?.let {window.decorView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);watch.run(it)}}
                 }
                 stopWork=watch::background
                 WatchScreen(watch) {moveTaskToBack(true)}

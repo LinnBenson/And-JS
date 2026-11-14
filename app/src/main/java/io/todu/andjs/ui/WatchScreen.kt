@@ -18,6 +18,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.res.painterResource
+import io.todu.andjs.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -35,6 +37,11 @@ import io.todu.andjs.wear.WatchViewModel
 private val watchGreen=Color(0xFFB6FF80)
 private val watchCard=Color(0xFF20242B)
 @Composable fun WatchScreen(model:WatchViewModel,preview:Boolean=false,onHome:()->Unit) {
+    val context=androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val preferences=remember(context,preview) {context.getSharedPreferences(if(preview) "watch-preview-display" else "watch-display",android.content.Context.MODE_PRIVATE)}
+    var grid by remember(preferences) {mutableStateOf(preferences.getBoolean("grid",true))}
+    val feedbackView=androidx.compose.ui.platform.LocalView.current
+    fun clickFeedback() {feedbackView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)}
     var permissions by rememberSaveable {mutableStateOf(false)}
     val snapshot by model.snapshot.collectAsStateWithLifecycle()
     val run by model.execution.collectAsStateWithLifecycle()
@@ -44,12 +51,34 @@ private val watchCard=Color(0xFF20242B)
             if(permissions) WatchPermissionsScreen(preview) {permissions=false}
             else if(preview && interaction!=null) WatchInteraction(interaction!!,embedded=true)
             else if(run==null) LazyColumn(contentPadding=PaddingValues(horizontal=20.dp,vertical=30.dp),verticalArrangement=Arrangement.spacedBy(8.dp),horizontalAlignment=Alignment.CenterHorizontally) {
-                item {Text("And JS",fontSize=16.sp,modifier=Modifier.padding(bottom=8.dp))}
-                item {OutlinedButton(onClick={permissions=true},modifier=Modifier.fillMaxWidth()) {Text("权限授权",fontSize=13.sp)}}
+                item {Image(painterResource(R.drawable.app_symbol),contentDescription="And JS",modifier=Modifier.padding(bottom=8.dp).size(width=44.dp,height=30.dp))}
+                item {
+                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+                        OutlinedButton(onClick={permissions=true},modifier=Modifier.weight(1f)) {Text("权限授权",fontSize=13.sp)}
+                        IconButton(onClick={clickFeedback();grid=!grid;preferences.edit().putBoolean("grid",grid).apply()},modifier=Modifier.size(40.dp)) {
+                            Glyph(if(grid) "list" else "layout-grid",watchGreen,Modifier.size(20.dp),if(grid) "切换列表显示" else "切换宫格显示")
+                        }
+                    }
+                }
                 if(snapshot.scripts.isEmpty()) item {Text("暂无脚本",fontSize=14.sp,color=Color.Gray,modifier=Modifier.padding(vertical=20.dp))}
-                items(snapshot.scripts,key={it.item.id}) {doc->
+                if(grid) {
+                    items(snapshot.scripts.chunked(3),key={row->"grid:"+row.first().item.id}) {row->
+                        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                            row.forEach {doc->
+                                val tint=scriptColors(doc.item.color)
+                                Column(Modifier.weight(1f).clickable {clickFeedback();model.run(doc)}.padding(vertical=4.dp),horizontalAlignment=Alignment.CenterHorizontally) {
+                                    Box(Modifier.size(42.dp).background(tint.background,RoundedCornerShape(14.dp)),contentAlignment=Alignment.Center) {
+                                        Glyph(doc.item.icon,tint.foreground,Modifier.size(25.dp))
+                                    }
+                                    Text(watchGridName(doc.item.name),fontSize=10.sp,lineHeight=12.sp,maxLines=1,overflow=TextOverflow.Ellipsis,textAlign=androidx.compose.ui.text.style.TextAlign.Center,modifier=Modifier.fillMaxWidth().padding(top=5.dp))
+                                }
+                            }
+                            repeat(3-row.size) {Spacer(Modifier.weight(1f))}
+                        }
+                    }
+                } else items(snapshot.scripts,key={it.item.id}) {doc->
                     val tint=scriptColors(doc.item.color)
-                    Surface(onClick={model.run(doc)},shape=RoundedCornerShape(24.dp),color=watchCard) {
+                    Surface(onClick={clickFeedback();model.run(doc)},shape=RoundedCornerShape(24.dp),color=watchCard) {
                         Row(Modifier.fillMaxWidth().heightIn(min=56.dp).padding(horizontal=12.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically) {
                             Box(Modifier.size(34.dp).background(tint.background,RoundedCornerShape(12.dp)),contentAlignment=Alignment.Center) {Glyph(doc.item.icon,tint.foreground,Modifier.size(22.dp))}
                             Spacer(Modifier.width(10.dp));Text(doc.item.name,fontSize=14.sp,maxLines=2,overflow=TextOverflow.Ellipsis,modifier=Modifier.weight(1f))
@@ -96,11 +125,11 @@ private val watchCard=Color(0xFF20242B)
                     itemsIndexed(current.logs) {_,line->if(line.level=="img") ImageLogItem(line) else WatchTextCard(line.text,when(line.level) {"warn"->Color(0xFFFFD38A);"error"->Color(0xFFFF8B83);else->Color.White})}
                     if(text.isNotEmpty()) item {WatchTextCard(text)}
                     if(!current.running) item {
-                        Button(onClick={model.close();onHome()},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) {Text("返回表盘",fontSize=14.sp)}
+                        Button(onClick={clickFeedback();model.close();onHome()},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) {Text("返回表盘",fontSize=14.sp)}
                     }
                 }
                 Box(Modifier.fillMaxWidth().padding(bottom=4.dp),contentAlignment=Alignment.Center) {
-                    IconButton(onClick={if(current.running) model.stop() else model.close()},modifier=Modifier.size(48.dp).semantics {contentDescription=if(current.running) "停止脚本" else "返回列表"}) {
+                    IconButton(onClick={clickFeedback();if(current.running) model.stop() else model.close()},modifier=Modifier.size(48.dp).semantics {contentDescription=if(current.running) "停止脚本" else "返回列表"}) {
                         Box(Modifier.size(32.dp).background(watchCard,androidx.compose.foundation.shape.CircleShape),contentAlignment=Alignment.Center) {
                             if(current.running) Box(Modifier.size(12.dp).background(watchGreen,RoundedCornerShape(2.dp)))
                             else Glyph("back",watchGreen,Modifier.size(20.dp))
@@ -144,3 +173,5 @@ private val watchCard=Color(0xFF20242B)
         else Dialog(onDismissRequest={request.respond(null)},properties=DialogProperties(usePlatformDefaultWidth=false,dismissOnClickOutside=false)) {content()}
     }
 }
+
+private fun watchGridName(name:String):String = if(name.codePointCount(0,name.length)>6) name.substring(0,name.offsetByCodePoints(0,6))+"…" else name

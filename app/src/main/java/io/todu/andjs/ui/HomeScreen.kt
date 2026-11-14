@@ -79,7 +79,7 @@ import io.todu.andjs.ui.theme.*
     }
     if(page==2) {WatchPhoneScreen(model,onNavigate={page=it});return}
     if (editor != null) {
-        ScriptEditorScreen(editor!!, categories, onDismiss=model::closeEditor, onSave=model::save)
+        ScriptEditorScreen(editor!!, categories, onDismiss=model::closeEditor, onSave=model::save,onRun={doc,updated->model.run(doc.item,doc.source,updated)})
         if (message != null) AlertDialog(onDismissRequest=model::dismissMessage, text={Text(message!!)}, confirmButton={TextButton(onClick=model::dismissMessage){Text("知道了")}})
         return
     }

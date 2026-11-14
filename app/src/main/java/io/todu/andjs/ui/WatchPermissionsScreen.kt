@@ -32,6 +32,9 @@ import io.todu.andjs.runtime.FitnessApi
         (context.applicationContext as io.todu.andjs.AndJsApplication).externalFlow=false
         status=fitness.status();denied=it.values.any {granted->!granted}
     }
+    val notifyLauncher=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        (context.applicationContext as io.todu.andjs.AndJsApplication).externalFlow=false
+    }
     val owner=LocalLifecycleOwner.current
     DisposableEffect(owner,preview) {
         val observer=LifecycleEventObserver {_,event->if(event==Lifecycle.Event.ON_RESUME && !preview) {status=fitness.status();writeSettings=Settings.System.canWrite(context)}}
@@ -46,6 +49,10 @@ import io.todu.andjs.runtime.FitnessApi
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(horizontal=24.dp,vertical=32.dp),verticalArrangement=Arrangement.spacedBy(8.dp),horizontalAlignment=Alignment.CenterHorizontally) {
         item {Text("权限授权",fontSize=16.sp)}
         item {ConnectionPermissions(preview)}
+        item {OutlinedButton(onClick={
+            if(preview) message="请在手表上授权"
+            else try {context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))} catch(_:Exception) {message="此设备没有无障碍设置"}
+        },modifier=Modifier.fillMaxWidth()) {Text("系统操作授权",fontSize=13.sp)}}
         for((label,key) in listOf("步数" to "steps","心率" to "heartRate")) item {
             Row(Modifier.fillMaxWidth().padding(vertical=6.dp),horizontalArrangement=Arrangement.SpaceBetween) {
                 Text(label,fontSize=13.sp)
@@ -58,6 +65,11 @@ import io.todu.andjs.runtime.FitnessApi
             else permissionFlow(context) {launcher.launch(fitness.permissions())}
         },modifier=Modifier.fillMaxWidth()) {Text("健身传感器",fontSize=13.sp)}}
         item {OutlinedButton(onClick={open(Settings.ACTION_MANAGE_WRITE_SETTINGS)},modifier=Modifier.fillMaxWidth()) {Text(if(writeSettings) "系统设置 · 已授权" else "修改系统设置",fontSize=12.sp)}}
+        item {OutlinedButton(onClick={
+            if(preview) message="请在手表上授权"
+            else if(android.os.Build.VERSION.SDK_INT>=33 && context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED) permissionFlow(context) {notifyLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)}
+            else context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,context.packageName))
+        },modifier=Modifier.fillMaxWidth()) {Text("通知授权",fontSize=13.sp)}}
         item {OutlinedButton(onClick={open(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)},modifier=Modifier.fillMaxWidth()) {Text("应用权限",fontSize=13.sp)}}
         message?.let {item {Text(it,fontSize=12.sp,color=Color.LightGray)}}
         item {TextButton(onClick=onBack) {Text("返回")}}

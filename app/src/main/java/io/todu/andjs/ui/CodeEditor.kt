@@ -10,6 +10,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.*
@@ -25,6 +27,20 @@ import androidx.compose.ui.unit.sp
     val redo = remember { mutableStateListOf<TextFieldValue>() }
     val vertical = rememberScrollState()
     val horizontal = rememberScrollState()
+    var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    var viewportWidth by remember { mutableIntStateOf(0) }
+    val cursorMargin=with(LocalDensity.current) {16.dp.toPx()}
+    LaunchedEffect(value.text,value.selection,textLayout,viewportWidth) {
+        val layout=textLayout ?: return@LaunchedEffect
+        if(viewportWidth<=0 || layout.layoutInput.text.text!=value.text) return@LaunchedEffect
+        val cursor=layout.getCursorRect(value.selection.end.coerceIn(0,value.text.length))
+        val target=when {
+            cursor.left<horizontal.value+cursorMargin -> (cursor.left-cursorMargin).toInt()
+            cursor.right>horizontal.value+viewportWidth-cursorMargin -> (cursor.right-viewportWidth+cursorMargin).toInt()
+            else -> horizontal.value
+        }.coerceIn(0,horizontal.maxValue)
+        if(target!=horizontal.value) horizontal.scrollTo(target)
+    }
     val colors = MaterialTheme.colorScheme
     val dark = isSystemInDarkTheme()
     val syntax = remember(dark) { JavascriptHighlight(dark) }
@@ -54,7 +70,7 @@ import androidx.compose.ui.unit.sp
         HorizontalDivider(color=colors.outlineVariant)
         Row(Modifier.weight(1f).fillMaxWidth().verticalScroll(vertical).padding(vertical=12.dp)) {
             Text((1..(value.text.count {it=='\n'}+1)).joinToString("\n"),fontSize=13.sp,lineHeight=22.sp,fontFamily=FontFamily.Monospace,color=colors.onSurfaceVariant.copy(alpha=.6f),modifier=Modifier.widthIn(min=40.dp).padding(horizontal=10.dp))
-            Box(Modifier.weight(1f).horizontalScroll(horizontal).padding(end=20.dp)) {
+            Box(Modifier.weight(1f).onSizeChanged {viewportWidth=it.width}.horizontalScroll(horizontal).padding(end=20.dp)) {
                 BasicTextField(value=value,onValueChange={ next ->
                     // Indent only a single newline inserted at a collapsed cursor.
                     val pos=value.selection.start
@@ -64,12 +80,12 @@ import androidx.compose.ui.unit.sp
                         val indent=previous.takeWhile {it==' ' || it=='\t'} + if(previous.trimEnd().endsWith("{")) "  " else ""
                         update(TextFieldValue(next.text.substring(0,pos+1)+indent+next.text.substring(pos+1),TextRange(pos+1+indent.length)))
                     } else update(next)
-                },modifier=Modifier.onFocusChanged {onFocus(it.isFocused)}.widthIn(min=280.dp).fillMaxHeight(),textStyle=TextStyle(color=colors.onSurface,fontSize=13.sp,lineHeight=22.sp,fontFamily=FontFamily.Monospace),cursorBrush=SolidColor(colors.primary),visualTransformation=syntax,keyboardOptions=KeyboardOptions(autoCorrectEnabled=false,capitalization=KeyboardCapitalization.None,keyboardType=KeyboardType.Ascii))
+                },onTextLayout={textLayout=it},modifier=Modifier.onFocusChanged {onFocus(it.isFocused)}.widthIn(min=280.dp).fillMaxHeight(),textStyle=TextStyle(color=colors.onSurface,fontSize=13.sp,lineHeight=22.sp,fontFamily=FontFamily.Monospace),cursorBrush=SolidColor(colors.primary),visualTransformation=syntax,keyboardOptions=KeyboardOptions(autoCorrectEnabled=false,capitalization=KeyboardCapitalization.None,keyboardType=KeyboardType.Ascii))
             }
         }
         HorizontalDivider(color=colors.outlineVariant)
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically) {
-            listOf("⇥","{","}","(",")","[","]",";","'","\"","=",".").forEach { token ->
+            listOf("⇥","{","}","(",")","[","]",";","'","\"","`","=",".").forEach { token ->
                 TextButton(onClick={insert(if(token=="⇥") "  " else token)},modifier=Modifier.width(42.dp).height(48.dp),contentPadding=PaddingValues(0.dp)) {Text(token,fontSize=16.sp,fontFamily=FontFamily.Monospace)}
             }
         }
