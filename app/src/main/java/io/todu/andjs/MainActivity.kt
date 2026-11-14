@@ -16,9 +16,10 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent:android.content.Intent) {super.onNewIntent(intent);setIntent(intent);widgetRequest.value=io.todu.andjs.widget.ScriptWidgetProvider.requestedId(this,intent)}
     private val handler=android.os.Handler(android.os.Looper.getMainLooper())
     private var stopWork:(()->Unit)?=null
-    private val exitTask=Runnable {if(!isFinishing) {stopWork?.invoke();finishAndRemoveTask()}}
+    private val exitTask=Runnable {if(!isFinishing && !(application as AndJsApplication).voiceInputActive) {stopWork?.invoke();finishAndRemoveTask()}}
     override fun startActivityForResult(intent:android.content.Intent,requestCode:Int,options:Bundle?) {
         (application as AndJsApplication).externalFlow=true
+        handler.removeCallbacks(exitTask)
         try {super.startActivityForResult(intent,requestCode,options)} catch(e:Exception) {(application as AndJsApplication).externalFlow=false;throw e}
     }
     override fun startActivity(intent:android.content.Intent,options:Bundle?) {
@@ -35,10 +36,16 @@ class MainActivity : ComponentActivity() {
             val app=application as AndJsApplication
             if(!app.voiceInputActive) stopWork?.invoke()
             io.todu.andjs.runtime.DeviceControls(this).call("system","cancelVibration",org.json.JSONArray())
-            if(!app.externalFlow) handler.postDelayed(exitTask,if(app.isWatch) 0 else 15_000)
+            if(!app.externalFlow && !app.voiceInputActive) handler.postDelayed(exitTask,if(app.isWatch) 0 else 15_000)
         }
     }
-    override fun onTrimMemory(level:Int) {super.onTrimMemory(level);if(level>=android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) stopWork?.invoke()}
+    override fun onTrimMemory(level:Int) {
+        super.onTrimMemory(level)
+        // UI_HIDDEN reports visibility, not memory pressure (e.g. system voice input).
+        val memoryPressure = level in android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW until android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN ||
+            level >= android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND
+        if(memoryPressure) stopWork?.invoke()
+    }
     override fun onDestroy() {handler.removeCallbacks(exitTask);super.onDestroy()}
 
     override fun onCreate(savedInstanceState: Bundle?) {
