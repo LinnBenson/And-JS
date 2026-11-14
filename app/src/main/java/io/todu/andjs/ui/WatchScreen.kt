@@ -53,10 +53,12 @@ private val watchCard=Color(0xFF20242B)
             else if(run==null) LazyColumn(contentPadding=PaddingValues(horizontal=20.dp,vertical=30.dp),verticalArrangement=Arrangement.spacedBy(8.dp),horizontalAlignment=Alignment.CenterHorizontally) {
                 item {Image(painterResource(R.drawable.app_symbol),contentDescription="And JS",modifier=Modifier.padding(bottom=8.dp).size(width=44.dp,height=30.dp))}
                 item {
-                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
-                        OutlinedButton(onClick={permissions=true},modifier=Modifier.weight(1f)) {Text("权限授权",fontSize=13.sp)}
+                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
+                        IconButton(onClick={clickFeedback();permissions=true},modifier=Modifier.size(40.dp)) {
+                            Glyph("shield",Color(0xFF9CA497),Modifier.size(18.dp),"权限授权")
+                        }
                         IconButton(onClick={clickFeedback();grid=!grid;preferences.edit().putBoolean("grid",grid).apply()},modifier=Modifier.size(40.dp)) {
-                            Glyph(if(grid) "list" else "layout-grid",watchGreen,Modifier.size(20.dp),if(grid) "切换列表显示" else "切换宫格显示")
+                            Glyph(if(grid) "list" else "layout-grid",Color(0xFF9CA497),Modifier.size(18.dp),if(grid) "切换列表显示" else "切换宫格显示")
                         }
                     }
                 }
