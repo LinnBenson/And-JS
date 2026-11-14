@@ -88,7 +88,6 @@ open class ScriptWidgetProvider:AppWidgetProvider() {
                         slot.setInt(R.id.widget_card_background,"setColorFilter",colors.first.toInt())
                         slot.setImageViewResource(R.id.widget_icon,AppIcons.resource(item.icon) ?: R.drawable.ic_code)
                         slot.setInt(R.id.widget_icon,"setColorFilter",colors.second.toInt())
-                        slot.setInt(R.id.widget_play,"setColorFilter",colors.second.toInt())
                         slot.setTextColor(R.id.widget_name,colors.second.toInt())
                         slot.setTextViewText(R.id.widget_name,item.name)
                         slot.setContentDescription(R.id.widget_item,"运行${item.name}")

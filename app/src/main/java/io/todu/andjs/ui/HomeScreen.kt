@@ -181,9 +181,8 @@ import io.todu.andjs.ui.theme.*
                     }
                 }
             }
-            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().heightIn(min=48.dp).padding(end=8.dp),verticalAlignment=Alignment.CenterVertically) {
                 Text(item.name,fontSize=15.sp,fontWeight=FontWeight.Medium,maxLines=2,overflow=TextOverflow.Ellipsis,modifier=Modifier.weight(1f))
-                IconButton(onClick=onRun) {Glyph("play",colors.primary,Modifier.size(18.dp),"运行${item.name}")}
             }
         }
     }
