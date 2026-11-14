@@ -122,3 +122,9 @@ options.start/end 为 Unix 毫秒，默认今天零点到现在。历史读取�
 系统操作：`andjs.system.toast(text, duration)` 显示系统提示；手表可用 `andjs.system.returnToWatchFace()` 返回表盘。`andjs.system.openRecents()` 和 `andjs.system.openNotificationShade()` 需要在权限授权中开启“系统操作”无障碍服务，具体支持依设备而定。该服务不读取屏幕内容、不订阅操作事件；开启后由系统保持绑定，关闭授权即可停用。
 
 `andjs.text(array)` 将数组用换行符拼接为文本。`andjs.value.all()` 和 `andjs.global.all()` 返回全部参数或全局变量的独立对象快照。
+
+## 许可证
+
+Copyright 2026 LinnBenson.
+
+And JS 采用 [Apache License 2.0](LICENSE) 开源。第三方组件及资源遵循各自的许可证，相关说明见 [第三方资料](docs/third-party/) 和 [随应用提供的许可证](app/src/main/assets/licenses/)。
