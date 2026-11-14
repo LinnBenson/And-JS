@@ -122,7 +122,14 @@ class HomeViewModel(private val repository: ScriptRepository, private val runner
         if(runControl!=null) return
         background=false
         var latestItem=item
-        val control=RunControl(onInteraction={interaction.value=it},persistVariables={namespace,values ->
+        val control=RunControl(loadScript={id->kotlinx.coroutines.runBlocking {
+            repository.load().find {it.id==id}?.let {ScriptDocument(it,repository.read(id))}
+        }},saveScriptVariables={id,values->kotlinx.coroutines.runBlocking {
+            val saved=repository.load().find {it.id==id} ?: error("脚本已删除")
+            repository.save(ScriptDocument(saved.copy(parameters=values),repository.read(id)))
+            mutable.update {state->state.copy(items=state.items.map {if(it.id==id) it.copy(parameters=values) else it})}
+            refreshWatch()
+        }},onInteraction={interaction.value=it},persistVariables={namespace,values ->
             kotlinx.coroutines.runBlocking {
                 if(namespace=="value") {
                     val updated=latestItem.copy(parameters=values)
@@ -144,7 +151,7 @@ class HomeViewModel(private val repository: ScriptRepository, private val runner
         viewModelScope.launch {
             val result=try {runner.run(draftSource ?: repository.read(item.id),item.parameters,globalRepository.load(),control) {logs->execution.update {it?.copy(logs=logs)}}}
                 catch(e:Exception) {RunResult("",emptyList(),"无法运行脚本："+(e.message ?: "读取失败"))}
-            execution.value=if(background) null else Execution(item.name,false,result,item.icon,item.color,result.logs)
+            execution.value=if(background || control.closeRequested.get()) null else Execution(item.name,false,result,item.icon,item.color,result.logs)
             runControl=null
         }
     }

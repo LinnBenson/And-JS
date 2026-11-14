@@ -65,11 +65,12 @@ import java.io.File
             val platform=object:PlatformApi {
                 private val host=AndroidPlatformApi(context)
                 override fun call(namespace:String,method:String,args:org.json.JSONArray):Any? = when(namespace) {
+                    "cache"->ScriptCache(File(context.filesDir,"watch-preview/script-cache")).call(method,args)
                     "image"->LogImages.prepare(args.getString(0),true)
                     "files"->ScriptFiles(root,root,lowMemory=true) {false}.call(method,args)
                     "health"->if(method=="status") mapOf("sensors" to mapOf("steps" to false,"heartRate" to false,"stepsGranted" to false,"heartRateGranted" to false),"dailySteps" to false,"history" to mapOf("available" to false,"status" to "unsupported","granted" to emptyList<String>()),"source" to "preview") else error("请在真实设备上读取健康数据")
                     "permissions"->mapOf("internet" to true,"watch" to true,"writeSettings" to false,"sharedFiles" to false)
-                    "system"->if(method.startsWith("set") || method in listOf("openSettings","vibrate","cancelVibration")) error("预览不修改手机系统设置") else host.call(namespace,method,args)
+                    "system"->if(method=="share") ScriptExtras.share(context,args.getString(0)) {path->ScriptFiles(root,root,lowMemory=true) {false}.resolve(path)} else if(method.startsWith("set") || method in listOf("openSettings","vibrate","cancelVibration")) error("预览不修改手机系统设置") else host.call(namespace,method,args)
                     "device"->if(method=="location") error("请在真实设备上读取位置") else if(method=="info") (host.call(namespace,method,args) as Map<*,*>).entries.associate {it.key.toString() to it.value}+mapOf("watch" to true) else host.call(namespace,method,args)
                     else->host.call(namespace,method,args)
                 }

@@ -28,7 +28,12 @@ class MainActivity : ComponentActivity() {
         handler.removeCallbacks(exitTask)
         try {super.startActivity(intent,options)} catch(e:Exception) {app.externalFlow=false;throw e}
     }
-    override fun onStart() {super.onStart();handler.removeCallbacks(exitTask)}
+    override fun onStart() {
+        super.onStart();handler.removeCallbacks(exitTask)
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {io.todu.andjs.runtime.ScriptCache(java.io.File(filesDir,"script-cache")).clean();io.todu.andjs.runtime.ScriptExtras.cleanShares(this@MainActivity)} catch(_:Exception) {}
+        }
+    }
     override fun onResume() {super.onResume();(application as AndJsApplication).externalFlow=false}
     override fun onStop() {
         super.onStop()

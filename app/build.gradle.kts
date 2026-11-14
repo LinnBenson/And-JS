@@ -10,8 +10,8 @@ android {
         applicationId = "io.todu.andjs"
         minSdk = 26
         targetSdk = 35
-        versionCode = 75
-        versionName = "1.1.12"
+        versionCode = 76
+        versionName = "1.1.13"
     }
     splits { abi { isEnable = true; reset(); include("arm64-v8a", "armeabi-v7a"); isUniversalApk = false } }
     buildFeatures { compose = true; buildConfig = true }
@@ -20,6 +20,7 @@ android {
     buildTypes { release { isMinifyEnabled = false } }
 }
 dependencies {
+    implementation("com.google.zxing:core:3.5.3")
     implementation("androidx.wear.tiles:tiles:1.5.0")
     implementation("androidx.wear.protolayout:protolayout:1.3.0")
     implementation("com.google.guava:guava:32.0.1-android")

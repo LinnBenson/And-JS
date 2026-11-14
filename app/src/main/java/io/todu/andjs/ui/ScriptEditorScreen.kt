@@ -139,6 +139,10 @@ import io.todu.andjs.runtime.ParameterValues
             Row(Modifier.fillMaxWidth().padding(top=8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected=tab==0,onClick={tab=0},label={Text("代码")})
                 FilterChip(selected=tab==1,onClick={tab=1},label={Text("参数" + if(parameters.isEmpty()) "" else " · ${parameters.size}")})
+                Spacer(Modifier.weight(1f))
+                androidx.compose.foundation.text.selection.SelectionContainer(Modifier.align(Alignment.CenterVertically).weight(2f)) {
+                    Text(document.item.id,fontSize=10.sp,color=colors.onSurfaceVariant,textAlign=androidx.compose.ui.text.style.TextAlign.End,modifier=Modifier.fillMaxWidth())
+                }
             }
             }}
             validation?.let { Text(it,color=colors.error,fontSize=12.sp) }

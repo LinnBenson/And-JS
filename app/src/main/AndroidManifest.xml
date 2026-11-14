@@ -28,6 +28,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <application android:requestLegacyExternalStorage="true" android:name=".AndJsApplication" android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules" android:label="And JS" android:icon="@mipmap/ic_launcher" android:theme="@style/Theme.AndJS" android:supportsRtl="true">
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.scriptfiles" android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/script_share_paths"/>
+        </provider>
         <receiver android:name=".widget.ScriptWidgetProvider" android:exported="false" android:label="And JS · 2×2">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_small"/>

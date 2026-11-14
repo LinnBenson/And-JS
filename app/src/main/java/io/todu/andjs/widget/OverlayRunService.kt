@@ -17,7 +17,10 @@ import io.todu.andjs.ui.theme.AndJsTheme
 import kotlinx.coroutines.*
 
 /** Exists only while a user-requested desktop run is visible. Never restarted. */
-class OverlayRunService:Service(),LifecycleOwner,SavedStateRegistryOwner,ViewModelStoreOwner {
+class OverlayRunService:Service(),LifecycleOwner,SavedStateRegistryOwner,ViewModelStoreOwner,androidx.activity.OnBackPressedDispatcherOwner {
+    override val onBackPressedDispatcher=androidx.activity.OnBackPressedDispatcher {
+        model.interaction.value?.respond(null) ?: if(model.execution.value?.running==true) model.stopRun() else stopSelf()
+    }
     private val registry=LifecycleRegistry(this)
     override val lifecycle:Lifecycle get()=registry
     private val saved=SavedStateRegistryController.create(this)
@@ -64,7 +67,8 @@ class OverlayRunService:Service(),LifecycleOwner,SavedStateRegistryOwner,ViewMod
             compose.setContent {
                 val run by model.execution.collectAsState()
                 val interaction by model.interaction.collectAsState()
-                AndJsTheme {CompositionLocalProvider(LocalOverlayHost provides true) {
+                AndJsTheme {CompositionLocalProvider(LocalOverlayHost provides true,
+                    androidx.activity.compose.LocalOnBackPressedDispatcherOwner provides this@OverlayRunService) {
                     run?.let {RunScreen(it,model::stopRun,{stopSelf()},interaction)}
                 }}
             }
@@ -73,7 +77,7 @@ class OverlayRunService:Service(),LifecycleOwner,SavedStateRegistryOwner,ViewMod
             params.softInputMode=WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
             compose.setOnKeyListener {_,code,event->
                 if(code==KeyEvent.KEYCODE_BACK && event.action==KeyEvent.ACTION_UP) {
-                    model.interaction.value?.respond(null) ?: if(model.execution.value?.running==true) model.stopRun() else stopSelf()
+                    onBackPressedDispatcher.onBackPressed()
                     true
                 } else false
             }
@@ -88,6 +92,7 @@ class OverlayRunService:Service(),LifecycleOwner,SavedStateRegistryOwner,ViewMod
                     model.run(item)
                     model.execution.collect {run->
                         handler.removeCallbacks(idleClose)
+                        if(run==null) {stopSelf();return@collect}
                         if(run!=null && !run.running) handler.postDelayed(idleClose,300_000)
                     }
                 } catch(e:Exception) {if(e !is CancellationException) stopSelf()}

@@ -47,6 +47,9 @@ class AndroidPlatformApi(private val context:Context):PlatformApi {
         }
         fun number(index:Int):Int {val v=args.get(index);require(v is Number && v.toDouble().isFinite() && v.toDouble()%1==0.0 && v.toDouble() in Int.MIN_VALUE.toDouble()..Int.MAX_VALUE.toDouble()) {"参数必须为整数"};return v.toInt()}
         return when(namespace) {
+            "cache"->ScriptCache(File(context.filesDir,"script-cache")).call(method,args)
+            "clipboard"->ScriptExtras.clipboard(context,method,args)
+            "util"->if(method=="qr") ScriptExtras.qr(string(0)) else error("未知方法")
             "image"->LogImages.prepare(string(0),watch)
             "health"->HealthApi(context).call(method,args)
             "permissions"->permissions()
@@ -67,6 +70,8 @@ class AndroidPlatformApi(private val context:Context):PlatformApi {
                 else->error("未知方法")
             }
             "system"->when(method) {
+                "openUrl"->ScriptExtras.openUrl(context,string(0))
+                "share"->ScriptExtras.share(context,string(0)) {path->ScriptFiles(File(context.filesDir,"user"),Environment.getExternalStorageDirectory(),lowMemory=watch) {permissions()["sharedFiles"]==true}.resolve(path)}
                 "openRecents"->SystemActionsService.perform(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_RECENTS)
                 "openNotificationShade"->SystemActionsService.perform(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS)
                 "toast"->{

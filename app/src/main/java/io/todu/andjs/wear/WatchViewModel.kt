@@ -21,13 +21,14 @@ class WatchViewModel(private val store:WatchStore,private val runner:ScriptRunne
         val version=input.third
         val current=input.first
         val item=current.item
-        val c=RunControl(persistVariables={namespace,values->store.writeVariables(item.id,version,namespace,values)},onInteraction={interaction.value=it})
+        val c=RunControl(loadScript={id->store.runData(id)?.also {check(it.third==version) {"脚本已更新，请重新运行"}}?.first},
+            saveScriptVariables={id,values->store.writeVariables(id,version,"value",values)},persistVariables={namespace,values->store.writeVariables(item.id,version,namespace,values)},onInteraction={interaction.value=it})
         control=c;execution.value=HomeViewModel.Execution(item.name,icon=item.icon,color=item.color)
         val globals=input.second
         viewModelScope.launch {
             val result=try {runner.run(current.source,item.parameters,globals,c) {logs->execution.value=execution.value?.copy(logs=logs)}}
                 catch(e:Exception) {RunResult("",emptyList(),e.message ?: "执行失败")}
-            execution.value=if(background) null else HomeViewModel.Execution(item.name,false,result,item.icon,item.color,result.logs);control=null
+            execution.value=if(background || c.closeRequested.get()) null else HomeViewModel.Execution(item.name,false,result,item.icon,item.color,result.logs);control=null
         }
     }
     fun stop() {control?.stop()}

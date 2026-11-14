@@ -8,7 +8,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.security.SecureRandom
 import java.util.UUID
 
-class RunControl(val persistVariables:((String,List<ScriptParameter>)->Unit)?=null, val onInteraction:((ScriptInteraction?)->Unit)?=null) {
+class RunControl(val persistVariables:((String,List<ScriptParameter>)->Unit)?=null, val loadScript:((String)->io.todu.andjs.domain.ScriptDocument?)?=null, val saveScriptVariables:((String,List<ScriptParameter>)->Unit)?=null, val onInteraction:((ScriptInteraction?)->Unit)?=null) {
+    val closeRequested = AtomicBoolean(false)
     val stopped = AtomicBoolean(false)
     private val activeStop=java.util.concurrent.atomic.AtomicReference<(() -> Unit)?>(null)
     fun stop() { stopped.set(true);activeStop.get()?.invoke() }
@@ -39,7 +40,8 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
         var imageLogChars=0
         var waitingNanos=0L
         var interactionWaitingNanos=0L
-        var httpSession:HttpSession?=null
+        val httpSessions=mutableListOf<HttpSession>()
+        var globalValues=globals.toList()
         fun checkRun() {
             if(control.stopped.get()) throw RunAborted(true)
             if(lowMemory && (System.nanoTime()-started-interactionWaitingNanos)/1_000_000>60_000) throw Context.reportRuntimeError("手表运行已超过 60 秒，已停止")
@@ -59,6 +61,11 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
         try {
             require(source.length<=if(lowMemory) 256_000 else 1_000_000) {"脚本超过当前设备大小限制"}
             factory.call(ContextAction<Unit> {cx ->
+                val session by lazy {HttpSession(networkRoot,control,lowMemory).also {httpSessions.add(it)}}
+                fun execute(code:String, initialParameters:List<ScriptParameter>, persist:((String,List<ScriptParameter>)->Unit)?, depth:Int):Any? {
+                require(depth<=8) {"脚本调用最多允许 8 层"}
+                require(code.length<=if(lowMemory) 256_000 else 1_000_000) {"脚本超过当前设备大小限制"}
+                var returned:Any?=Undefined.instance
                 val scope=cx.initSafeStandardObjects()
                 fun objectValue(parent:Scriptable, key:String):Scriptable {
                     val obj=cx.newObject(scope); ScriptableObject.putProperty(parent,key,obj);return obj
@@ -92,18 +99,20 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                 }
                 val api=objectValue(scope,"andjs")
                 fun values(namespace:String, entries:List<ScriptParameter>) {
-                    var current=entries.toList()
+                    var localValues=entries.toList()
+                    fun current()=if(namespace=="global") globalValues else localValues
+                    fun update(next:List<ScriptParameter>) {if(namespace=="global") globalValues=next else localValues=next}
                     val target=objectValue(api,namespace)
                     fun key(args:Array<out Any?>):String {
                         require(args.firstOrNull() is CharSequence) {"键必须为字符串"}
                         return args[0].toString().also {require(it.isNotBlank() && it.length<=200) {"键须为 1–200 字符"}}
                     }
                     function(target,"all") {
-                        js(current.associate {it.key to ParameterValues.parse(it)})
+                        js(current().associate {it.key to ParameterValues.parse(it)})
                     }
                     function(target,"get") {args->
                         val name=key(args)
-                        val entry=current.find {it.key==name}
+                        val entry=current().find {it.key==name}
                         if(entry!=null) js(ParameterValues.parse(entry)) else args.getOrElse(1) {Undefined.instance}
                     }
                     function(target,"set") {args->
@@ -140,26 +149,26 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                             else -> throw IllegalArgumentException("仅支持 boolean、string、number、array")
                         }
                         require(parameter.value.length<=1_000_000) {"变量内容过大"}
-                        val next=current.toMutableList()
+                        val next=current().toMutableList()
                         val index=next.indexOfFirst {it.key==name}
                         if(index<0) next.add(parameter) else next[index]=parameter
-                        val persist=control.persistVariables ?: throw Context.reportRuntimeError("当前环境不支持保存变量")
-                        persist(namespace,next)
-                        current=next
+                        val save=persist ?: throw Context.reportRuntimeError("当前环境不支持保存变量")
+                        save(namespace,next)
+                        update(next)
                         Undefined.instance
                     }
                     function(target,"delete") {args->
                         val name=key(args)
-                        if(current.none {it.key==name}) false else {
-                            val next=current.filter {it.key!=name}
-                            val persist=control.persistVariables ?: throw Context.reportRuntimeError("当前环境不支持保存变量")
-                            persist(namespace,next)
-                            current=next
+                        if(current().none {it.key==name}) false else {
+                            val next=current().filter {it.key!=name}
+                            val save=persist ?: throw Context.reportRuntimeError("当前环境不支持保存变量")
+                            save(namespace,next)
+                            update(next)
                             true
                         }
                     }
                 }
-                values("value",parameters);values("global",globals)
+                values("value",initialParameters);values("global",globalValues)
                 val log=objectValue(api,"log")
                 listOf("info","warn","error").forEach {level->function(log,level) {args->
                     val message=args.joinToString(" ") {display(it)}
@@ -173,7 +182,8 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                 val info=ScriptableObject.getProperty(log,"info")
                 ScriptableObject.putProperty(objectValue(scope,"console"),"log",info)
                 function(scope,"exit") {args->
-                    output=when {
+                    returned=args.getOrElse(0) {Undefined.instance}
+                    if(depth==0) output=when {
                         args.isEmpty() || args[0] is Undefined -> ""
                         args[0] is Boolean -> if(args[0] == true) "执行成功" else "执行失败"
                         else -> display(args[0])
@@ -188,6 +198,7 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                     Undefined.instance
                 }
                 val ui=objectValue(api,"ui")
+                function(ui,"close") { control.closeRequested.set(true);control.stop();throw RunAborted(true) }
                 listOf("input","select","multiSelect","confirm").forEach {kind -> function(ui,kind) {args ->
                     require(args.firstOrNull() is CharSequence) {"标题必须为字符串"}
                     val title=args[0].toString().take(200)
@@ -223,7 +234,6 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                     js(answer)
                 }}
                 val http=objectValue(api,"http")
-                val session by lazy {HttpSession(networkRoot,control,lowMemory).also {httpSession=it}}
                 fun network(args:Array<out Any?>,method:String?=null,download:Boolean=false):Any? {
                     require(args.firstOrNull() is CharSequence) {"URL 必须为字符串"}
                     val options=if(args.size<2 || args[1] is Undefined) org.json.JSONObject() else {
@@ -308,7 +318,7 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                     Undefined.instance
                 }
                 platform?.let {host->
-                    listOf("health" to listOf("status","current","summary","read"),"device" to listOf("info","battery","network","memory","storage","screen","power","sensors","vibrator","location","locationStatus","wifi","bluetooth"),"system" to listOf("getBrightness","setBrightness","getVolume","setVolume","openSettings","setAutoBrightness","getScreenTimeout","setScreenTimeout","getRotation","setRotation","vibrate","cancelVibration","notify","cancelNotification","speak","playAudio","toast","returnToWatchFace","openRecents","openNotificationShade"),"files" to listOf("read","write","append","exists","list","mkdir","delete","copy","move","info"),"permissions" to listOf("status")).forEach {(space,methods)->
+                    listOf("clipboard" to listOf("get","set"),"cache" to listOf("get","set","remove"),"health" to listOf("status","current","summary","read"),"device" to listOf("info","battery","network","memory","storage","screen","power","sensors","vibrator","location","locationStatus","wifi","bluetooth"),"system" to listOf("getBrightness","setBrightness","getVolume","setVolume","openSettings","setAutoBrightness","getScreenTimeout","setScreenTimeout","getRotation","setRotation","vibrate","cancelVibration","notify","cancelNotification","speak","playAudio","toast","returnToWatchFace","openRecents","openNotificationShade","openUrl","share"),"files" to listOf("read","write","append","exists","list","mkdir","delete","copy","move","info"),"permissions" to listOf("status")).forEach {(space,methods)->
                         val target=objectValue(api,space)
                         methods.forEach {name->function(target,name) {args->
                             val json=Context.toString(NativeJSON.stringify(cx,scope,cx.newArray(scope,args),null,null))
@@ -337,7 +347,37 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                     }
                     text.toString()
                 }
+                val script=objectValue(api,"script")
+                function(script,"run") {args->
+                    require(args.firstOrNull() is CharSequence) {"脚本 ID 必须为字符串"}
+                    require(depth<8) {"脚本调用最多允许 8 层"}
+                    val id=args[0].toString()
+                    val document=control.loadScript?.invoke(id) ?: error("找不到脚本：$id；手表只能调用已同步的脚本")
+                    val overrides=args.getOrElse(1) {Undefined.instance}
+                    val entries=document.item.parameters.toMutableList()
+                    if(overrides !is Undefined) {
+                        require(overrides is NativeObject) {"params 必须为对象"}
+                        overrides.ids.forEach {key->
+                            val name=key.toString()
+                            require(name.isNotBlank() && name.length<=200) {"参数键须为 1–200 字符"}
+                            val value=if(key is Number) overrides.get(key.toInt(),overrides) else overrides.get(name,overrides)
+                            val type=when(value) {is Boolean->"boolean";is CharSequence->"string";is Number->{require(value.toDouble().isFinite());"number"};is NativeArray->"array";else->error("参数仅支持 boolean、string、number、array")}
+                            val encoded=if(type=="array") Context.toString(NativeJSON.stringify(cx,scope,value,null,null)) else Context.toString(value)
+                            require(encoded.length<=1_000_000) {"参数内容过大"}
+                            entries.removeAll {it.key==name};entries.add(ScriptParameter(name,type,encoded))
+                        }
+                    }
+                    // Child scopes share cancellation, time/memory budgets, global values and log limits.
+                    execute(document.source,entries,{space,values->
+                        if(space=="global") (control.persistVariables ?: error("无法保存全局变量"))(space,values)
+                        else (control.saveScriptVariables ?: error("无法保存脚本参数"))(id,values)
+                    },depth+1)
+                }
                 val util=objectValue(api,"util")
+                function(util,"qr") {args->
+                    require(args.firstOrNull() is CharSequence) {"二维码内容必须为字符串"}
+                    (platform ?: error("当前环境不支持二维码")).call("util","qr",org.json.JSONArray().put(args[0].toString()),control)
+                }
                 function(util,"isJson") {args->
                     val value=args.firstOrNull()
                     if(value !is CharSequence) false else try {
@@ -378,8 +418,10 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                     min.toInt()+random.nextInt((max-min+1).toInt())
                 }
                 checkRun()
-                cx.evaluateString(scope,source,"main.js",1,null)
-                checkRun()
+                try {cx.evaluateString(scope,code,"main.js",1,null);checkRun()} catch(_:ScriptExited) {}
+                return returned
+                }
+                execute(source,parameters,control.persistVariables,0)
             })
             RunResult(output,logs.toList(),elapsedMs=(System.nanoTime()-started)/1_000_000)
         } catch(e:ScriptExited) {
@@ -392,6 +434,6 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
             RunResult(output,logs.toList(),e.message ?: "运行失败",elapsedMs=(System.nanoTime()-started)/1_000_000)
         } catch(e:StackOverflowError) {
             RunResult(output,logs.toList(),"调用层级过深",elapsedMs=(System.nanoTime()-started)/1_000_000)
-        } finally {httpSession?.close()}
+        } finally {httpSessions.forEach {it.close()}}
     }
 }
