@@ -2,6 +2,7 @@ package io.todu.andjs.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,6 +26,7 @@ import androidx.compose.ui.window.DialogProperties
 
 @Composable fun RunScreen(run:HomeViewModel.Execution,onStop:()->Unit,onClose:()->Unit,interaction:io.todu.andjs.runtime.ScriptInteraction?=null) {
     val colors=MaterialTheme.colorScheme
+    val overlay=LocalOverlayHost.current
     val tint=scriptColors(run.color)
     val warningColor=Color(0xFF8A5000)
     val logState=rememberLazyListState()
@@ -42,7 +44,9 @@ import androidx.compose.ui.window.DialogProperties
     val hasResult=resultText.isNotEmpty()
     val height=(LocalConfiguration.current.screenHeightDp * .84f).dp.coerceAtMost(620.dp)
     ModalHost(onDismiss={if(!run.running) onClose()},backEnabled=!run.running) {
-        Surface(modifier=Modifier.padding(horizontal=24.dp).widthIn(max=440.dp).fillMaxWidth().height(height),shape=RoundedCornerShape(24.dp),color=colors.background) {
+        Surface(modifier=Modifier.padding(horizontal=24.dp).widthIn(max=440.dp).fillMaxWidth().height(height),shape=RoundedCornerShape(24.dp),color=colors.background,
+            border=if(overlay) BorderStroke(1.dp,colors.outlineVariant) else null,
+            shadowElevation=if(overlay) 12.dp else 0.dp) {
             Column(Modifier.fillMaxSize().padding(20.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 Text(run.name,fontSize=18.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
                 Box(Modifier.size(104.dp),contentAlignment=Alignment.Center) {
