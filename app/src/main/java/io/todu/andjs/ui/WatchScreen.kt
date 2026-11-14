@@ -37,6 +37,7 @@ import io.todu.andjs.wear.WatchViewModel
 private val watchGreen=Color(0xFFB6FF80)
 private val watchCard=Color(0xFF20242B)
 @Composable fun WatchScreen(model:WatchViewModel,preview:Boolean=false,onHome:()->Unit) {
+    var previewImage by remember {mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)}
     val context=androidx.compose.ui.platform.LocalContext.current.applicationContext
     val preferences=remember(context,preview) {context.getSharedPreferences(if(preview) "watch-preview-display" else "watch-display",android.content.Context.MODE_PRIVATE)}
     var grid by remember(preferences) {mutableStateOf(preferences.getBoolean("grid",true))}
@@ -124,7 +125,7 @@ private val watchCard=Color(0xFF20242B)
                         else Glyph(if(current.result?.error!=null || current.result?.output=="执行失败") "x" else "check",if(current.result?.error!=null || current.result?.output=="执行失败") Color(0xFFFF8B83) else watchGreen,Modifier.size(32.dp))
                     }
                     item {Text(if(current.running) current.name else if(current.result?.stopped==true) "已停止" else if(current.result?.error!=null || current.result?.output=="执行失败") "执行失败" else "执行完成",fontSize=16.sp,maxLines=2)}
-                    itemsIndexed(current.logs) {_,line->if(line.level=="img") ImageLogItem(line) else WatchTextCard(line.text,when(line.level) {"warn"->Color(0xFFFFD38A);"error"->Color(0xFFFF8B83);else->Color.White})}
+                    itemsIndexed(current.logs) {_,line->if(line.level=="img") ImageLogItem(line) {previewImage=it} else WatchTextCard(line.text,when(line.level) {"warn"->Color(0xFFFFD38A);"error"->Color(0xFFFF8B83);else->Color.White})}
                     if(text.isNotEmpty()) item {WatchTextCard(text)}
                     if(!current.running) item {
                         Button(onClick={clickFeedback();model.close();onHome()},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) {Text("返回表盘",fontSize=14.sp)}
@@ -141,6 +142,7 @@ private val watchCard=Color(0xFF20242B)
                 }
             }
         }
+        previewImage?.let {ImagePreview(it,watch=true) {previewImage=null}}
         if(!preview) interaction?.let {WatchInteraction(it)}
     }
 }

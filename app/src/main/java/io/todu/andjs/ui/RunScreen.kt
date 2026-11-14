@@ -25,6 +25,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
 @Composable fun RunScreen(run:HomeViewModel.Execution,onStop:()->Unit,onClose:()->Unit,interaction:io.todu.andjs.runtime.ScriptInteraction?=null) {
+    var previewImage by remember {mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)}
     val colors=MaterialTheme.colorScheme
     val overlay=LocalOverlayHost.current
     val tint=scriptColors(run.color)
@@ -59,7 +60,7 @@ import androidx.compose.ui.window.DialogProperties
                     LazyColumn(modifier=Modifier.fillMaxWidth().then(if(hasResult) Modifier.heightIn(max=height*.32f) else Modifier.weight(1f)),state=logState,verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         itemsIndexed(run.logs,key={index,_->index}) {_,line->
                             Surface(modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(10.dp),color=Color.White) {
-                                if(line.level=="img") ImageLogItem(line) else SelectionContainer {Text(line.text,color=when(line.level) {"warn"->warningColor;"error"->Color(0xFFB3261E);else->Color(0xFF181C17)},modifier=Modifier.padding(horizontal=12.dp,vertical=10.dp),fontSize=12.sp,fontFamily=FontFamily.Monospace)}
+                                if(line.level=="img") ImageLogItem(line) {previewImage=it} else SelectionContainer {Text(line.text,color=when(line.level) {"warn"->warningColor;"error"->Color(0xFFB3261E);else->Color(0xFF181C17)},modifier=Modifier.padding(horizontal=12.dp,vertical=10.dp),fontSize=12.sp,fontFamily=FontFamily.Monospace)}
                             }
                         }
                     }
@@ -79,6 +80,7 @@ import androidx.compose.ui.window.DialogProperties
             }
         }
     }
+    previewImage?.let {ImagePreview(it) {previewImage=null}}
     if(interaction!=null) InteractionDialog(interaction)
 
 }

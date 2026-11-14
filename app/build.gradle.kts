@@ -10,8 +10,8 @@ android {
         applicationId = "io.todu.andjs"
         minSdk = 26
         targetSdk = 35
-        versionCode = 70
-        versionName = "1.1.7"
+        versionCode = 71
+        versionName = "1.1.8"
     }
     splits { abi { isEnable = true; reset(); include("arm64-v8a", "armeabi-v7a"); isUniversalApk = false } }
     buildFeatures { compose = true; buildConfig = true }
