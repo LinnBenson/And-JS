@@ -153,12 +153,45 @@ private val watchCard=Color(0xFF20242B)
     key(request) {
         var text by rememberSaveable {mutableStateOf(request.initial)}
         var selected by rememberSaveable {mutableStateOf(listOf<Int>())}
+        val context=androidx.compose.ui.platform.LocalContext.current
+        val app=context.applicationContext as io.todu.andjs.AndJsApplication
+        val focus=androidx.compose.ui.platform.LocalFocusManager.current
+        var voicePending by rememberSaveable {mutableStateOf(false)}
+        val voice=androidx.activity.compose.rememberLauncherForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+        ) {result->
+            app.voiceInputActive=false
+            app.externalFlow=false
+            voicePending=false
+            if(result.resultCode==android.app.Activity.RESULT_OK) {
+                result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)
+                    ?.firstOrNull()?.takeIf {it.isNotBlank()}?.let {text=it.take(10000)}
+            }
+        }
+        DisposableEffect(request) {onDispose {app.voiceInputActive=false}}
         val content:@Composable ()->Unit = {
             Surface(Modifier.fillMaxSize(),color=Color.Black) {
                 LazyColumn(modifier=Modifier.fillMaxSize(),contentPadding=PaddingValues(horizontal=24.dp,vertical=30.dp),verticalArrangement=Arrangement.spacedBy(8.dp,Alignment.CenterVertically),horizontalAlignment=Alignment.CenterHorizontally) {
                     item {Text(request.title,fontSize=16.sp,textAlign=androidx.compose.ui.text.style.TextAlign.Center,modifier=Modifier.fillMaxWidth())}
                     if(request.content.isNotBlank()) item {Text(request.content,fontSize=12.sp,color=Color.LightGray,textAlign=androidx.compose.ui.text.style.TextAlign.Center,modifier=Modifier.fillMaxWidth())}
-                    if(request.kind=="input") item {OutlinedTextField(text,{if(it.length<=10000) text=it},modifier=Modifier.fillMaxWidth(),textStyle=LocalTextStyle.current.copy(fontSize=14.sp),maxLines=4,shape=RoundedCornerShape(16.dp))}
+                    if(request.kind=="input") item {OutlinedTextField(text,{if(it.length<=10000) text=it},modifier=Modifier.fillMaxWidth(),textStyle=LocalTextStyle.current.copy(fontSize=14.sp),maxLines=4,shape=RoundedCornerShape(16.dp),trailingIcon={
+                        IconButton(enabled=!voicePending,onClick={
+                            focus.clearFocus()
+                            app.voiceInputActive=true
+                            app.externalFlow=true
+                            voicePending=true
+                            try {
+                                voice.launch(android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                    putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                    putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT,request.title)
+                                    putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS,1)
+                                })
+                            } catch(_:Exception) {
+                                app.voiceInputActive=false;app.externalFlow=false;voicePending=false
+                                android.widget.Toast.makeText(context,"无法打开系统语音输入",android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }) {Glyph("mic",watchGreen,Modifier.size(20.dp),"语音输入")}
+                    })}
                     if(request.kind in listOf("select","multiSelect")) itemsIndexed(request.options) {index,label->
                         Surface(onClick={if(request.kind=="select") request.respond(index) else selected=if(index in selected) selected-index else selected+index},shape=RoundedCornerShape(20.dp),color=if(index in selected) Color(0xFF35532B) else watchCard) {
                             Row(Modifier.fillMaxWidth().heightIn(min=48.dp).padding(12.dp),verticalAlignment=Alignment.CenterVertically) {Text(label,fontSize=14.sp,modifier=Modifier.weight(1f));if(index in selected) Glyph("check",watchGreen,Modifier.size(18.dp))}

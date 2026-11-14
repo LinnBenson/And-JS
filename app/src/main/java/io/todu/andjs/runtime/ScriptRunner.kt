@@ -308,14 +308,14 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                     Undefined.instance
                 }
                 platform?.let {host->
-                    listOf("health" to listOf("status","current","summary","read"),"device" to listOf("info","battery","network","memory","storage","screen","power","sensors","vibrator","location","locationStatus","wifi","bluetooth"),"system" to listOf("getBrightness","setBrightness","getVolume","setVolume","openSettings","setAutoBrightness","getScreenTimeout","setScreenTimeout","getRotation","setRotation","vibrate","cancelVibration","notify","cancelNotification","toast","returnToWatchFace","openRecents","openNotificationShade"),"files" to listOf("read","write","append","exists","list","mkdir","delete","copy","move","info"),"permissions" to listOf("status")).forEach {(space,methods)->
+                    listOf("health" to listOf("status","current","summary","read"),"device" to listOf("info","battery","network","memory","storage","screen","power","sensors","vibrator","location","locationStatus","wifi","bluetooth"),"system" to listOf("getBrightness","setBrightness","getVolume","setVolume","openSettings","setAutoBrightness","getScreenTimeout","setScreenTimeout","getRotation","setRotation","vibrate","cancelVibration","notify","cancelNotification","speak","playAudio","toast","returnToWatchFace","openRecents","openNotificationShade"),"files" to listOf("read","write","append","exists","list","mkdir","delete","copy","move","info"),"permissions" to listOf("status")).forEach {(space,methods)->
                         val target=objectValue(api,space)
                         methods.forEach {name->function(target,name) {args->
                             val json=Context.toString(NativeJSON.stringify(cx,scope,cx.newArray(scope,args),null,null))
                             val start=System.nanoTime()
                             val result=try {host.call(space,name,org.json.JSONArray(json),control)}
                             catch(e:Exception) {if(control.stopped.get()) throw RunAborted(true);throw e}
-                            finally {if(space=="health" || (space=="device" && name=="location")) waitingNanos+=System.nanoTime()-start}
+                            finally {if(space=="health" || (space=="system" && name in listOf("speak","playAudio")) || (space=="device" && name=="location")) waitingNanos+=System.nanoTime()-start}
                             checkRun()
                             js(result)
                         }}

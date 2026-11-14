@@ -32,9 +32,9 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         if(!isChangingConfigurations) {
-            stopWork?.invoke()
-            io.todu.andjs.runtime.DeviceControls(this).call("system","cancelVibration",org.json.JSONArray())
             val app=application as AndJsApplication
+            if(!app.voiceInputActive) stopWork?.invoke()
+            io.todu.andjs.runtime.DeviceControls(this).call("system","cancelVibration",org.json.JSONArray())
             if(!app.externalFlow) handler.postDelayed(exitTask,if(app.isWatch) 0 else 15_000)
         }
     }

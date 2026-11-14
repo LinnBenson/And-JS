@@ -48,7 +48,7 @@ import java.io.File
     var widgetPreview by rememberSaveable {mutableStateOf(false)}
     var revision by remember {mutableIntStateOf(0)}
     DisposableEffect(owner) {
-        val observer=LifecycleEventObserver {_,event->if(event==Lifecycle.Event.ON_STOP) model?.background()}
+        val observer=LifecycleEventObserver {_,event->if(event==Lifecycle.Event.ON_STOP && !(context as io.todu.andjs.AndJsApplication).voiceInputActive) model?.background()}
         owner.lifecycle.addObserver(observer)
         onDispose {owner.lifecycle.removeObserver(observer);models.clear()}
     }

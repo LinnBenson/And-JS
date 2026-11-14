@@ -5,6 +5,7 @@ import io.todu.andjs.runtime.RhinoScriptRunner
 class AndJsApplication : Application() {
     val isWatch by lazy {packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_WATCH)}
     var externalFlow=false
+    var voiceInputActive=false
     val watchStore by lazy { io.todu.andjs.wear.WatchStore(filesDir) }
     val watchSync by lazy { io.todu.andjs.wear.WatchSync(this) }
     val repository by lazy { FileScriptRepository(this) }

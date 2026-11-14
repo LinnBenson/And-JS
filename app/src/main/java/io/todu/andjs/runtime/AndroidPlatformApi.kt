@@ -21,6 +21,9 @@ import java.util.Base64
 class AndroidPlatformApi(private val context:Context):PlatformApi {
     override fun call(namespace:String,method:String,args:JSONArray,control:RunControl):Any? =
         when {
+            namespace=="system" && method in listOf("speak","playAudio")->ScriptAudio.play(context,method,args,control) {path->
+                ScriptFiles(File(context.filesDir,"user"),Environment.getExternalStorageDirectory(),lowMemory=watch) {permissions()["sharedFiles"]==true}.resolve(path)
+            }
             namespace=="health"->HealthApi(context).call(method,args,control)
             namespace=="device" && method=="location"->LocationApi(context).read(if(args.length()>0) args.getJSONObject(0) else org.json.JSONObject(),control)
             else->call(namespace,method,args)

@@ -7,7 +7,7 @@ import java.util.Base64
 import org.json.JSONArray
 
 class ScriptFiles(private val appRoot:File,private val sharedRoot:File,private val lowMemory:Boolean=false,private val hasShared:()->Boolean) {
-    private fun resolve(path:String):File {
+    fun resolve(path:String):File {
         val shared=path.startsWith("shared:/")
         require(!shared || hasShared()) {"请先在设置中授权共享文件访问"}
         val root=if(shared) sharedRoot else appRoot
