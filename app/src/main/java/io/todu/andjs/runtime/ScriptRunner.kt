@@ -18,7 +18,7 @@ class RunControl(val persistVariables:((String,List<ScriptParameter>)->Unit)?=nu
         return {activeStop.compareAndSet(action,null);Unit}
     }
 }
-data class LogEntry(val level:String,val text:String,val imageRatio:Float=1f,val imageWidth:Int=240)
+data class LogEntry(val level:String,val text:String,val imageRatio:Float=1f,val imageWidth:Int=240,val imageWidthPercent:Float?=null)
 data class RunResult(val output:String, val logs:List<LogEntry>, val error:String?=null, val stopped:Boolean=false, val elapsedMs:Long=0)
 interface ScriptRunner {
     suspend fun run(source:String, parameters:List<ScriptParameter>, globals:List<ScriptParameter>, control:RunControl, onLogs:(List<LogEntry>)->Unit = {}):RunResult
@@ -264,8 +264,16 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                         return@function Undefined.instance
                     }
                     require(logs.count {it.level=="img"}<(if(lowMemory) 4 else 12)) {"图片日志数量已达到上限"}
-                    val width=if(args.size<2 || args[1] is Undefined) (if(lowMemory) 160 else 240) else {
-                        val value=args[1];require(value is Number && value.toDouble().isFinite() && value.toDouble()%1==0.0 && value.toDouble() in 32.0..320.0) {"最大宽度应为 32–320 的整数"};value.toInt().coerceAtMost(if(lowMemory) 160 else 320)
+                    val requestedWidth=args.getOrNull(1)
+                    val percent=if(requestedWidth is CharSequence) {
+                        val text=requestedWidth.toString().trim()
+                        val value=if(text.endsWith("%")) text.dropLast(1).toFloatOrNull() else null
+                        require(value!=null && value.isFinite() && value>0f && value<=100f) {"百分比宽度应大于 0% 且不超过 100%"}
+                        value
+                    } else null
+                    val width=if(requestedWidth==null || requestedWidth is Undefined || percent!=null) (if(lowMemory) 160 else 240) else {
+                        require(requestedWidth is Number && requestedWidth.toDouble().isFinite() && requestedWidth.toDouble()%1==0.0 && requestedWidth.toDouble() in 32.0..320.0) {"最大宽度应为 32–320 的整数或百分比字符串"}
+                        requestedWidth.toInt().coerceAtMost(if(lowMemory) 160 else 320)
                     }
                     var input=args.firstOrNull()
                     if(input is NativeObject) {
@@ -295,7 +303,7 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                     val preview=image["base64"] as String
                     require(imageLogChars+preview.length <= if(lowMemory) 1_400_000 else 5_600_000) {"图片日志总量已达上限"}
                     imageLogChars+=preview.length
-                    logs.add(LogEntry("img",preview,(image["ratio"] as Number).toFloat(),width))
+                    logs.add(LogEntry("img",preview,(image["ratio"] as Number).toFloat(),width,percent))
                     onLogs(logs.toList())
                     Undefined.instance
                 }

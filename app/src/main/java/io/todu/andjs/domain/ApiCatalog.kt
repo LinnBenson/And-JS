@@ -36,6 +36,6 @@ object ApiCatalog {
         ApiArgument("source","string | object","HTTPS 图片地址、app:/ 或 shared:/ 本机路径、纯 Base64、data:image/...;base64,...；也可直接传入 andjs.http 的 base64 或 file 模式响应。共享文件仅手机且需授权。"),
         ApiArgument("source.base64","string，可选","网络请求以 responseType: base64 返回的图片编码。"),
         ApiArgument("source.file","string，可选","网络请求以 responseType: file 返回的下载文件名；相对 app:/network/。base64 优先。"),
-        ApiArgument("maxWidth","number，可选","最大显示宽度 dp，32–320；手机默认 240，手表默认及上限 160。受容器宽度约束，不放大小图。")
+        ApiArgument("maxWidth","number | string，可选","数字为最大宽度 dp，32–320；手机默认 240，手表默认及上限 160，数字模式不放大小图。百分比字符串范围大于 0% 且不超过 100%，例如 100% 占满容器可用宽度、50% 占一半；手机和手表均保持图片比例，百分比模式允许放大小图。")
     ),"undefined；同步加载、解码后追加一条图片日志。支持系统可解码的 PNG/JPEG/WebP 等位图，动图只显示首帧，不支持 SVG。手机单图原始数据最多 2MB、每次最多 12 张；手表 512KB、4 张；图片也计入总日志上限。原图不超过 4000 万像素，解码缩略图最长边手机 640 / 手表 320 像素；预览编码超出手机 768KB / 手表 192KB 时拒绝。加载失败抛错，不创建历史记录。","const r = andjs.http.get(\"https://example.com/icon.png\", {responseType: \"base64\"});\nandjs.log.img(r, 160);\nandjs.log.img(\"app:/photo.png\");","可用")) + ExtendedApiCatalog.methods + HealthApiCatalog.methods + DeviceApiCatalog.methods + ConnectivityApiCatalog.methods + NotificationApiCatalog.methods
 }

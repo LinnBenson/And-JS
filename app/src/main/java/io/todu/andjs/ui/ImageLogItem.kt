@@ -21,7 +21,8 @@ import java.util.Base64
     BoxWithConstraints(Modifier.fillMaxWidth().padding(8.dp),contentAlignment=Alignment.Center) {
         if(bitmap==null) Text("图片无法显示")
         else {
-            val width=minOf(maxWidth,entry.imageWidth.dp,with(density) {bitmap.width.toDp()},320.dp*entry.imageRatio)
+            val width=entry.imageWidthPercent?.let {maxWidth*(it/100f)}
+                ?: minOf(maxWidth,entry.imageWidth.dp,with(density) {bitmap.width.toDp()},320.dp*entry.imageRatio)
             Image(bitmap,contentDescription="图片日志",contentScale=ContentScale.Fit,modifier=Modifier.width(width).aspectRatio(entry.imageRatio))
         }
     }
