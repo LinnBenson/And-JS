@@ -1,0 +1,47 @@
+package io.todu.andjs.domain
+
+object ExtendedApiCatalog {
+    private fun field(name:String,type:String,description:String)=ApiArgument(name,type,description)
+    private val httpFields=listOf(
+        field("status","number","HTTP 状态码。"),field("statusText","string","HTTP 状态文字，HTTP/2 下可能为空。"),field("ok","boolean","状态码是否为 200–299。"),field("url","string","最终 URL。"),
+        field("headers","object<string, string[]>","小写响应头名称映射到值数组，保留 Set-Cookie 等重复头。"),field("contentType","string","响应内容类型，无此头为空字符串。"),
+        field("size","number","已读取响应字节数。"),field("elapsedMs","number","请求及响应读取耗时，毫秒。"),field("text","string，可选","auto/text/json 模式存在，按响应 charset 解码，默认 UTF-8。"),
+        field("data","任意 JSON 类型，可选","默认 auto 模式：合法 JSON 自动解析为对象、数组或对应标量，否则为原始字符串；json 模式严格解析，空响应为 null，无效 JSON 抛错。"),field("base64","string，可选","仅 base64 模式存在。"),field("file","string，可选","仅 file 模式存在，下载文件名，对应 app:/network/<file>。")
+    )
+    private val httpArguments=listOf(field("url","string","完整 HTTPS URL。明文 HTTP 受 Android 系统策略限制。"),field("options","object，可选","配置如下；所有请求同步等待完整响应。"),
+        field("options.method","string","request 的方法，默认 GET；快捷方法固定其对应方法。"),field("options.query","object<string, scalar | scalar[]>","URL 查询参数，数组生成重复参数，自动编码。"),field("options.headers","object<string, string | string[]>","请求头，数组生成重复头。"),
+        field("options.auth","object，可选","{type:'basic', username:string, password:string} 或 {type:'bearer', token:string}。覆盖 Authorization 头。"),
+        field("options.data / json / form / text / base64 / file / multipart","互斥","data 为发送数据，对象或数组自动转为 JSON 并默认使用 application/json，其他类型转为文本；json 为显式 JSON 值；form 为对象（值可数组）；text 为字符串；base64 为二进制编码；file 为下载目录中的文件名。GET/HEAD 不支持请求体。"),
+        field("options.multipart","object[]","每项：name:string，value:标量 或 base64:string 或 file:string（三选一）；文件项可有 filename:string、contentType:string。最多 100 项。"),field("options.contentType","string，可选","覆盖 json/text/base64/file 默认类型；multipart 自动生成边界，勿自行覆盖其 Content-Type。"),
+        field("options.responseType","string","auto（默认，自动解析 JSON）、text（保留原文）、json（严格解析）、base64、file。"),field("options.timeout / connectTimeout / readTimeout / writeTimeout","number","毫秒，1–120000；默认总超时 30000，连接 10000，读写 30000。网络等待不计入 JS 15 秒执行上限；手表请求超时上限 15000 毫秒，连续运行另受 60 秒检查预算限制（不计交互等待）。"),
+        field("options.followRedirects / cookies / throwOnHttpError","boolean","默认 true / true / false。Cookie 仅在同次脚本内共享。默认 4xx/5xx 正常返回，网络错误抛出；开启 throwOnHttpError 后非 2xx 抛出。不跨协议重定向。"),
+        field("options.maxBytes","number","手机内存响应默认 8MB、最大 16MB；文件响应默认 100MB、最大 256MB。手表内存响应默认及最大 2MB，下载默认及最大 16MB。超出则失败，清除临时下载。"),field("options.filename / overwrite","string / boolean","下载文件名默认随机生成，overwrite 默认 false。文件名限字母数字、点、横线和下划线。")
+    )
+    private val fileFields=listOf(field("name","string","文件或目录名。"),field("path","string","API 路径。"),field("exists","boolean","是否存在。"),field("isDirectory","boolean","是否为目录。"),field("size","number","文件大小（字节）；目录或不存在为 0。"),field("modifiedAt","number","修改时间 Unix 毫秒；不存在为 0。"))
+    private fun api(id:String,category:ApiCategory,signature:String,summary:String,args:List<ApiArgument>,returns:String,example:String,fields:List<ApiArgument> = emptyList(),devices:String="通用") = ApiMethod(id,category,"andjs."+id.substringBefore('.'),signature,summary,args,returns,example,"可用",fields,devices)
+    val methods = listOf("request","get","post","put","patch","delete","head","options","download").map {method->
+        api("http.$method",ApiCategory.NETWORK,"andjs.http.$method(url, options)",if(method=="download") "同步下载到应用文件目录。" else "同步发送 ${if(method=="request") "HTTP" else method.uppercase()} 请求。",httpArguments,"响应对象，字段如下。TLS 使用系统证书校验；不提供忽略证书选项，不自动重试。",
+            if(method=="download") "const r = andjs.http.download(\"https://example.com/\", {filename: \"page.html\"});\nexit(r);" else if(method=="post") "exit(andjs.http.post(\"https://example.com/api\", {data: {name: \"And JS\"}}));" else "exit(andjs.http.$method(\"https://example.com/\"));",httpFields)
+    } + listOf(
+        api("http.clearCookies",ApiCategory.NETWORK,"andjs.http.clearCookies()","清空本次脚本的 Cookie。",emptyList(),"undefined。","andjs.http.clearCookies();"),
+        api("permissions.status",ApiCategory.DEVICE,"andjs.permissions.status()","读取权限状态，不自动请求授权。",emptyList(),"object。","exit(andjs.permissions.status());",listOf(field("internet","boolean","是否声明联网权限，当前为 true。"),field("writeSettings","boolean","是否可修改系统设置。"),field("sharedFiles","boolean","是否可访问共享文件；手表为 false。"),field("watch","boolean","设备是否声明手表特性。"))),
+        api("device.info",ApiCategory.DEVICE,"andjs.device.info()","读取设备与系统基本信息。",emptyList(),"object，不包含设备唯一标识。","exit(andjs.device.info());",listOf(field("manufacturer","string","制造商。"),field("brand","string","品牌。"),field("model","string","型号。"),field("device","string","设备代号。"),field("androidVersion","string","Android 版本。"),field("sdk","number","Android API 等级。"),field("abis","string[]","支持的 CPU 架构。"),field("language","string","系统语言标签。"),field("timeZone","string","时区 ID。"),field("watch","boolean","是否为手表。"))),
+        api("device.battery",ApiCategory.DEVICE,"andjs.device.battery()","读取电池状态。",emptyList(),"object。","exit(andjs.device.battery());",listOf(field("percent","number | null","电量百分比，无法读取时为 null。"),field("charging","boolean","是否充电或已充满。"),field("temperature","number | null","摄氏温度，无法读取时为 null。"),field("plugged","boolean","是否连接电源。")),"依设备支持"),
+        api("system.getBrightness",ApiCategory.DEVICE,"andjs.system.getBrightness()","读取系统亮度。",emptyList(),"object。","exit(andjs.system.getBrightness());",listOf(field("value","number","亮度 0–255。"),field("automatic","boolean","是否自动亮度。")),"依设备支持"),
+        api("system.setBrightness",ApiCategory.DEVICE,"andjs.system.setBrightness(value)","设置系统亮度并切换为手动亮度。",listOf(field("value","number","0–255 整数；需要修改系统设置授权。")),"true；失败抛出错误。","andjs.system.setBrightness(128);",emptyList(),"依设备支持"),
+        api("system.getVolume",ApiCategory.DEVICE,"andjs.system.getVolume(stream)","读取指定音量。",listOf(field("stream","string，可选","music（默认）/ alarm / ring / notification。")),"object。","exit(andjs.system.getVolume(\"music\"));",listOf(field("value","number","当前音量等级。"),field("max","number","最高音量等级。")),"依设备支持"),
+        api("system.setVolume",ApiCategory.DEVICE,"andjs.system.setVolume(value, stream)","设置指定音量。",listOf(field("value","number","0 到 getVolume().max 的整数。"),field("stream","string，可选","music（默认）/ alarm / ring / notification；勿扰模式或设备限制可能阻止修改。")),"true；失败抛出错误。","andjs.system.setVolume(3, \"music\");",devices="依设备支持"),
+        api("system.openSettings",ApiCategory.DEVICE,"andjs.system.openSettings(page)","打开本机系统设置页；手表依系统提供的页面支持。",listOf(field("page","string，可选","app（默认）/ wifi / bluetooth / display / sound / battery / location / date / writeSettings。打开外部设置页会按应用后台策略停止当前脚本。")),"true 表示已发起打开，不表示用户修改成功；不支持时抛出错误。","andjs.system.openSettings(\"wifi\");",devices="手机、手表 · 依设置页支持")
+    ) + listOf(
+        api("files.read",ApiCategory.STORAGE,"andjs.files.read(path, encoding)","读取文件内容。",listOf(field("path","string","app:/ 相对应用文件目录（无需权限）；shared:/ 相对共享存储根目录（仅手机且需授权）。可省略 app:/。"),field("encoding","string，可选","utf8（默认）/ base64；手机文件最大 16MB，手表最大 2MB。")),"string。","exit(andjs.files.read(\"app:/notes.txt\"));"),
+        api("files.write",ApiCategory.STORAGE,"andjs.files.write(path, content, encoding)","写入文件，覆盖已有内容，自动建立父目录。",listOf(field("path","string","app:/ 或 shared:/ 路径；共享目录仅手机。"),field("content","string","文件内容。"),field("encoding","string，可选","utf8（默认）/ base64；输入文本手机最多 24M 字符，手表最多 2M 字符。")),"true；失败抛出错误。","andjs.files.write(\"app:/notes.txt\", \"你好\");"),
+        api("files.append",ApiCategory.STORAGE,"andjs.files.append(path, content, encoding)","追加文件内容。",listOf(field("path","string","app:/ 或 shared:/ 路径；共享目录仅手机。"),field("content","string","追加内容。"),field("encoding","string，可选","utf8（默认）/ base64。")),"true；失败可能已追加部分内容。","andjs.files.append(\"notes.txt\", \"\\n下一行\");"),
+        api("files.exists",ApiCategory.STORAGE,"andjs.files.exists(path)","判断文件或目录是否存在。",listOf(field("path","string","app:/ 或 shared:/ 路径。")),"boolean。","exit(andjs.files.exists(\"notes.txt\"));"),
+        api("files.info",ApiCategory.STORAGE,"andjs.files.info(path)","读取文件或目录信息。",listOf(field("path","string","app:/ 或 shared:/ 路径。")),"object。","exit(andjs.files.info(\"notes.txt\"));",fileFields),
+        api("files.list",ApiCategory.STORAGE,"andjs.files.list(path)","列出目录子项，按名称排序，不递归。",listOf(field("path","string","目录路径，最多 10000 项。")),"object[]，每个元素字段如下。","exit(andjs.files.list(\"app:/\"));",fileFields),
+        api("files.mkdir",ApiCategory.STORAGE,"andjs.files.mkdir(path)","建立目录及父目录。",listOf(field("path","string","目录路径。")),"boolean，目录已存在时为 true。","andjs.files.mkdir(\"app:/notes\");"),
+        api("files.delete",ApiCategory.STORAGE,"andjs.files.delete(path, recursive)","删除文件或目录，禁止删除根目录。",listOf(field("path","string","文件或目录路径。"),field("recursive","boolean，可选","默认 false；true 允许递归删除目录内容。")),"boolean；不存在或删除失败为 false，非法路径抛错。","andjs.files.delete(\"notes.txt\");"),
+        api("files.copy",ApiCategory.STORAGE,"andjs.files.copy(source, destination, overwrite)","复制单个文件。",listOf(field("source / destination","string","源文件和目标文件路径。"),field("overwrite","boolean，可选","默认 false。")),"true；失败抛出错误。","andjs.files.copy(\"notes.txt\", \"notes-copy.txt\");"),
+        api("files.move",ApiCategory.STORAGE,"andjs.files.move(source, destination, overwrite)","移动单个文件。",listOf(field("source / destination","string","源文件和目标文件路径。"),field("overwrite","boolean，可选","默认 false。")),"true；失败抛出错误。跨存储移动可能不受设备支持。","andjs.files.move(\"notes.txt\", \"notes-old.txt\");")
+    )
+}

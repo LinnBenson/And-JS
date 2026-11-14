@@ -1,0 +1,6 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal" android:baselineAligned="false">
+    <FrameLayout android:id="@+id/widget_left" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent"/>
+    <FrameLayout android:id="@+id/widget_right" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent"/>
+    <FrameLayout android:id="@+id/widget_third" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent"/>
+    <FrameLayout android:id="@+id/widget_fourth" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent"/>
+</LinearLayout>

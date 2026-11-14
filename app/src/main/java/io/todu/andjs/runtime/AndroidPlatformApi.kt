@@ -1,0 +1,86 @@
+package io.todu.andjs.runtime
+
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.media.AudioManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.net.Uri
+import android.os.BatteryManager
+import android.os.Build
+import android.os.Environment
+import android.provider.Settings
+import org.json.JSONArray
+import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.util.Base64
+
+class AndroidPlatformApi(private val context:Context):PlatformApi {
+    override fun call(namespace:String,method:String,args:JSONArray,control:RunControl):Any? =
+        when {
+            namespace=="health"->HealthApi(context).call(method,args,control)
+            namespace=="device" && method=="location"->LocationApi(context).read(if(args.length()>0) args.getJSONObject(0) else org.json.JSONObject(),control)
+            else->call(namespace,method,args)
+        }
+    private val watch=context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)
+    private val audio=context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    fun permissions():Map<String,Any> = mapOf(
+        "internet" to true,
+        "watch" to watch,
+        "writeSettings" to Settings.System.canWrite(context),
+        "sharedFiles" to (!watch && if(Build.VERSION.SDK_INT>=30) Environment.isExternalStorageManager() else context.checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)==PackageManager.PERMISSION_GRANTED),
+    )
+    private fun stream(name:String):Int = when(name) {"music"->AudioManager.STREAM_MUSIC;"alarm"->AudioManager.STREAM_ALARM;"ring"->AudioManager.STREAM_RING;"notification"->AudioManager.STREAM_NOTIFICATION;else->throw IllegalArgumentException("未知音量类型")}
+    override fun call(namespace:String,method:String,args:JSONArray):Any? {
+        fun string(index:Int,default:String?=null):String {
+            if(index>=args.length() && default!=null) return default
+            val value=args.get(index);require(value is String) {"参数 ${index+1} 必须为字符串"};return value
+        }
+        fun number(index:Int):Int {val v=args.get(index);require(v is Number && v.toDouble().isFinite() && v.toDouble()%1==0.0 && v.toDouble() in Int.MIN_VALUE.toDouble()..Int.MAX_VALUE.toDouble()) {"参数必须为整数"};return v.toInt()}
+        return when(namespace) {
+            "image"->LogImages.prepare(string(0),watch)
+            "health"->HealthApi(context).call(method,args)
+            "permissions"->permissions()
+            "device"->when(method) {
+                "memory","storage","screen","power","sensors","vibrator"->DeviceControls(context).call(namespace,method,args)
+                "info"->mapOf("watch" to watch,"manufacturer" to Build.MANUFACTURER,"brand" to Build.BRAND,"model" to Build.MODEL,"device" to Build.DEVICE,"androidVersion" to Build.VERSION.RELEASE,"sdk" to Build.VERSION.SDK_INT,"abis" to Build.SUPPORTED_ABIS.toList(),"language" to java.util.Locale.getDefault().toLanguageTag(),"timeZone" to java.util.TimeZone.getDefault().id)
+                "battery"->{
+                    val battery=context.registerReceiver(null,IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                    val level=battery?.getIntExtra(BatteryManager.EXTRA_LEVEL,-1) ?: -1
+                    val scale=battery?.getIntExtra(BatteryManager.EXTRA_SCALE,-1) ?: -1
+                    val status=battery?.getIntExtra(BatteryManager.EXTRA_STATUS,-1) ?: -1
+                    mapOf("percent" to if(level>=0 && scale>0) level*100.0/scale else null,"charging" to (status==BatteryManager.BATTERY_STATUS_CHARGING || status==BatteryManager.BATTERY_STATUS_FULL),"temperature" to if(battery?.hasExtra(BatteryManager.EXTRA_TEMPERATURE)==true) battery.getIntExtra(BatteryManager.EXTRA_TEMPERATURE,0)/10.0 else null,"plugged" to ((battery?.getIntExtra(BatteryManager.EXTRA_PLUGGED,0) ?: 0)!=0))
+                }
+                "network"->ConnectivityApi(context).network()
+                "wifi"->ConnectivityApi(context).wifi()
+                "bluetooth"->ConnectivityApi(context).bluetooth()
+                "locationStatus"->LocationApi(context).status()
+                else->error("未知方法")
+            }
+            "system"->when(method) {
+                "setAutoBrightness","getScreenTimeout","setScreenTimeout","getRotation","setRotation","vibrate","cancelVibration"->DeviceControls(context).call(namespace,method,args)
+                "getBrightness"->mapOf("value" to Settings.System.getInt(context.contentResolver,Settings.System.SCREEN_BRIGHTNESS,128),"automatic" to (Settings.System.getInt(context.contentResolver,Settings.System.SCREEN_BRIGHTNESS_MODE,0)==Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC))
+                "setBrightness"->{
+                    check(Settings.System.canWrite(context)) {"请先授权修改系统设置"};val value=number(0);require(value in 0..255)
+                    check(Settings.System.putInt(context.contentResolver,Settings.System.SCREEN_BRIGHTNESS_MODE,Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL))
+                    check(Settings.System.putInt(context.contentResolver,Settings.System.SCREEN_BRIGHTNESS,value));true
+                }
+                "getVolume"->{val s=stream(string(0,"music"));mapOf("value" to audio.getStreamVolume(s),"max" to audio.getStreamMaxVolume(s))}
+                "setVolume"->{val value=number(0);val s=stream(string(1,"music"));require(value in 0..audio.getStreamMaxVolume(s));audio.setStreamVolume(s,value,0);true}
+                "openSettings"->{
+                    val action=when(string(0,"app")) {"app"->Settings.ACTION_APPLICATION_DETAILS_SETTINGS;"wifi"->Settings.ACTION_WIFI_SETTINGS;"bluetooth"->Settings.ACTION_BLUETOOTH_SETTINGS;"display"->Settings.ACTION_DISPLAY_SETTINGS;"sound"->Settings.ACTION_SOUND_SETTINGS;"battery"->Settings.ACTION_BATTERY_SAVER_SETTINGS;"location"->Settings.ACTION_LOCATION_SOURCE_SETTINGS;"date"->Settings.ACTION_DATE_SETTINGS;"writeSettings"->Settings.ACTION_MANAGE_WRITE_SETTINGS;else->throw IllegalArgumentException("不支持的设置页")}
+                    val intent=Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    if(action==Settings.ACTION_APPLICATION_DETAILS_SETTINGS || action==Settings.ACTION_MANAGE_WRITE_SETTINGS) intent.data=Uri.parse("package:${context.packageName}")
+                    (context.applicationContext as? io.todu.andjs.AndJsApplication)?.externalFlow=true
+                    try {context.startActivity(intent)} catch(e:Exception) {(context.applicationContext as? io.todu.andjs.AndJsApplication)?.externalFlow=false;throw e};true
+                }
+                else->error("未知方法")
+            }
+            "files"->ScriptFiles(File(context.filesDir,"user"),Environment.getExternalStorageDirectory(),lowMemory=watch) {permissions()["sharedFiles"]==true}.call(method,args)
+            else->error("未知方法")
+        }
+    }
+}
