@@ -37,7 +37,7 @@ class ScriptTileService:TileService() {
             val sweep=360f/items.size-gap
             val colors=scriptColorPair(item.color)
             ring.addContent(Arc.Builder().setAnchorAngle(degrees(angle)).setAnchorType(ARC_ANCHOR_CENTER)
-                .addContent(ArcLine.Builder().setStrokeCap(STROKE_CAP_BUTT).setLength(degrees(sweep)).setThickness(dp(thickness)).setColor(argb(colors.first.toInt()))
+                .addContent(ArcLine.Builder().setStrokeCap(STROKE_CAP_BUTT).setLength(degrees(sweep)).setThickness(dp(thickness)).setColor(argb((colors.first.toInt() and 0x00FFFFFF) or (217 shl 24)))
                     .setModifiers(ArcModifiers.Builder().setClickable(click(item.id)).build()).build()).build())
             val label=io.todu.andjs.ui.watchTileLabel(item.name,360f/items.size-gap-4f,radius+thickness/2-15)
             ring.addContent(Box.Builder().setWidth(dp(size-24)).setHeight(dp(size-24)).addContent(Arc.Builder().setAnchorAngle(degrees(angle)).setAnchorType(ARC_ANCHOR_CENTER)
@@ -59,7 +59,7 @@ class ScriptTileService:TileService() {
         return Futures.immediateFuture(TileBuilders.Tile.Builder().setResourcesVersion(version())
             .setTileTimeline(TimelineBuilders.Timeline.Builder().addTimelineEntry(TimelineBuilders.TimelineEntry.Builder().setLayout(Layout.Builder().setRoot(root).build()).build()).build()).build())
     }
-    private fun version()=io.todu.andjs.wear.WatchSnapshot.hash("ring-v13:"+io.todu.andjs.BuildConfig.VERSION_NAME+":"+items().joinToString {"${it.id}:${it.icon}:${it.color}:${it.name}"})
+    private fun version()=io.todu.andjs.wear.WatchSnapshot.hash("ring-v15:"+io.todu.andjs.BuildConfig.VERSION_NAME+":"+items().joinToString {"${it.id}:${it.icon}:${it.color}:${it.name}"})
     override fun onTileResourcesRequest(requestParams:RequestBuilders.ResourcesRequest):ListenableFuture<ResourceBuilders.Resources> {
         val resources=ResourceBuilders.Resources.Builder().setVersion(version())
         resources.addIdToImageMapping("app",ResourceBuilders.ImageResource.Builder().setAndroidResourceByResId(ResourceBuilders.AndroidImageResourceByResId.Builder().setResourceId(R.drawable.app_symbol).build()).build())

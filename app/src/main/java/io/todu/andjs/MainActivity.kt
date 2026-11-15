@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
                 androidx.compose.runtime.LaunchedEffect(widgetRequest.value,complicationRequest.value) {
                     val shortcut=complicationRequest.value
                     val id=shortcut ?: widgetRequest.value
-                    if(id!=null) {widgetRequest.value=null;complicationRequest.value=null;app.watchStore.state.value.scripts.find {it.item.id==id && (it.item.widget || shortcut==id)}?.let {window.decorView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);watch.run(it)}}
+                    if(id!=null) {widgetRequest.value=null;complicationRequest.value=null;app.watchStore.state.value.scripts.find {it.item.id==id && (it.item.widget || shortcut==id)}?.let {window.decorView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);watch.run(it,fromWatchFace=true)}}
                 }
                 stopWork=watch::background
                 WatchScreen(watch) {moveTaskToBack(true)}

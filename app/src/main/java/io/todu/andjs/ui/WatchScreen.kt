@@ -36,6 +36,7 @@ import io.todu.andjs.wear.WatchViewModel
 
 private val watchGreen=Color(0xFFB6FF80)
 private val watchCard=Color(0xFF20242B)
+private val watchContentShape=RoundedCornerShape(8.dp)
 @Composable fun WatchScreen(model:WatchViewModel,preview:Boolean=false,onHome:()->Unit) {
     var previewImage by remember {mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)}
     val context=androidx.compose.ui.platform.LocalContext.current.applicationContext
@@ -53,12 +54,25 @@ private val watchCard=Color(0xFF20242B)
         Surface(Modifier.fillMaxSize(),color=Color.Black) {
             if(noteIndex!=null) {
                 val index=noteIndex!!
-                LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(horizontal=24.dp,vertical=28.dp),
-                    verticalArrangement=Arrangement.spacedBy(12.dp),horizontalAlignment=Alignment.CenterHorizontally) {
-                    item {IconButton(onClick={noteIndex=null}) {Glyph("back",watchGreen,Modifier.size(22.dp),"关闭便签")}}
-                    item {androidx.compose.foundation.text.selection.SelectionContainer {
-                        Text(snapshot.notes[index],fontSize=14.sp,modifier=Modifier.fillMaxWidth())
-                    }}
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                    // Keep the entire scrolling viewport inside the circular display.
+                    val horizontalInset=maxWidth*.16f
+                    val verticalInset=maxHeight*.16f
+                    Box(Modifier.fillMaxSize().padding(start=horizontalInset,end=horizontalInset,top=verticalInset,bottom=maxOf(verticalInset,52.dp))) {
+                        LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(vertical=4.dp),
+                            horizontalAlignment=Alignment.CenterHorizontally) {
+                            item {androidx.compose.foundation.text.selection.SelectionContainer {
+                                Text(snapshot.notes[index],fontSize=14.sp,modifier=Modifier.fillMaxWidth())
+                            }}
+                        }
+                    }
+                    Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom=4.dp),contentAlignment=Alignment.Center) {
+                        IconButton(onClick={clickFeedback();noteIndex=null},modifier=Modifier.size(48.dp)) {
+                            Box(Modifier.size(32.dp).background(watchCard,androidx.compose.foundation.shape.CircleShape),contentAlignment=Alignment.Center) {
+                                Glyph("x",watchGreen,Modifier.size(20.dp),"关闭便签")
+                            }
+                        }
+                    }
                 }
             }
             else if(permissions) WatchPermissionsScreen(preview) {permissions=false}
@@ -95,7 +109,7 @@ private val watchCard=Color(0xFF20242B)
                             row.forEach {doc->
                                 val tint=scriptColors(doc.item.color)
                                 Column(Modifier.weight(1f).clickable {clickFeedback();model.run(doc)}.padding(vertical=4.dp),horizontalAlignment=Alignment.CenterHorizontally) {
-                                    Box(Modifier.size(42.dp).background(tint.background,RoundedCornerShape(14.dp)),contentAlignment=Alignment.Center) {
+                                    Box(Modifier.size(42.dp).background(tint.background,watchContentShape),contentAlignment=Alignment.Center) {
                                         Glyph(doc.item.icon,tint.foreground,Modifier.size(25.dp))
                                     }
                                     Text(watchGridName(doc.item.name),fontSize=10.sp,lineHeight=12.sp,maxLines=1,overflow=TextOverflow.Ellipsis,textAlign=androidx.compose.ui.text.style.TextAlign.Center,modifier=Modifier.fillMaxWidth().padding(top=5.dp))
@@ -106,9 +120,9 @@ private val watchCard=Color(0xFF20242B)
                     }
                 } else items(snapshot.scripts,key={it.item.id}) {doc->
                     val tint=scriptColors(doc.item.color)
-                    Surface(onClick={clickFeedback();model.run(doc)},shape=RoundedCornerShape(24.dp),color=watchCard) {
+                    Surface(onClick={clickFeedback();model.run(doc)},shape=watchContentShape,color=watchCard) {
                         Row(Modifier.fillMaxWidth().heightIn(min=56.dp).padding(horizontal=12.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically) {
-                            Box(Modifier.size(34.dp).background(tint.background,RoundedCornerShape(12.dp)),contentAlignment=Alignment.Center) {Glyph(doc.item.icon,tint.foreground,Modifier.size(22.dp))}
+                            Box(Modifier.size(34.dp).background(tint.background,watchContentShape),contentAlignment=Alignment.Center) {Glyph(doc.item.icon,tint.foreground,Modifier.size(22.dp))}
                             Spacer(Modifier.width(10.dp));Text(doc.item.name,fontSize=14.sp,maxLines=2,overflow=TextOverflow.Ellipsis,modifier=Modifier.weight(1f))
                             Glyph("forward",Color.LightGray,Modifier.size(16.dp))
                         }
@@ -116,7 +130,12 @@ private val watchCard=Color(0xFF20242B)
                 }
             } else {
                 val current=run!!
-                BackHandler {if(current.running) model.stop() else model.close()}
+                fun returnFromRun() {
+                    val returnToWatchFace=model.returnToWatchFace
+                    model.close()
+                    if(returnToWatchFace) onHome()
+                }
+                BackHandler {if(current.running) model.stop() else returnFromRun()}
                 val list=rememberLazyListState()
                 val text=current.result?.error ?: current.result?.output.orEmpty()
                 val scrollUpdates=remember {Channel<Unit>(Channel.CONFLATED)}
@@ -152,15 +171,19 @@ private val watchCard=Color(0xFF20242B)
                     item {Text(if(current.running) current.name else if(current.result?.stopped==true) "已停止" else if(current.result?.error!=null || current.result?.output=="执行失败") "执行失败" else "执行完成",fontSize=16.sp,maxLines=2)}
                     itemsIndexed(current.logs) {_,line->if(line.level=="img") ImageLogItem(line) {previewImage=it} else WatchTextCard(line.text,when(line.level) {"warn"->Color(0xFFFFD38A);"error"->Color(0xFFFF8B83);else->Color.White})}
                     if(text.isNotEmpty()) item {WatchTextCard(text)}
-                    if(!current.running) item {
-                        Button(onClick={clickFeedback();model.close();onHome()},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) {Text("返回表盘",fontSize=14.sp)}
-                    }
                 }
-                Box(Modifier.fillMaxWidth().padding(bottom=4.dp),contentAlignment=Alignment.Center) {
-                    IconButton(onClick={clickFeedback();if(current.running) model.stop() else model.close()},modifier=Modifier.size(48.dp).semantics {contentDescription=if(current.running) "停止脚本" else "返回列表"}) {
-                        Box(Modifier.size(32.dp).background(watchCard,androidx.compose.foundation.shape.CircleShape),contentAlignment=Alignment.Center) {
-                            if(current.running) Box(Modifier.size(12.dp).background(watchGreen,RoundedCornerShape(2.dp)))
-                            else Glyph("back",watchGreen,Modifier.size(20.dp))
+                Row(Modifier.fillMaxWidth().padding(bottom=4.dp),horizontalArrangement=Arrangement.Center,verticalAlignment=Alignment.CenterVertically) {
+                    if(current.running) {
+                        IconButton(onClick={clickFeedback();model.stop()},modifier=Modifier.size(48.dp).semantics {contentDescription="停止脚本"}) {
+                            Box(Modifier.size(32.dp).background(watchCard,androidx.compose.foundation.shape.CircleShape),contentAlignment=Alignment.Center) {
+                                Box(Modifier.size(12.dp).background(watchGreen,RoundedCornerShape(2.dp)))
+                            }
+                        }
+                    } else {
+                        IconButton(onClick={clickFeedback();returnFromRun()},modifier=Modifier.size(48.dp)) {
+                            Box(Modifier.size(32.dp).background(watchCard,androidx.compose.foundation.shape.CircleShape),contentAlignment=Alignment.Center) {
+                                Glyph("back",watchGreen,Modifier.size(20.dp),if(model.returnToWatchFace) "返回表盘" else "返回列表")
+                            }
                         }
                     }
                 }
@@ -172,7 +195,7 @@ private val watchCard=Color(0xFF20242B)
     }
 }
 @Composable private fun WatchTextCard(text:String,color:Color=Color.White) {
-    Surface(shape=RoundedCornerShape(16.dp),color=watchCard,modifier=Modifier.fillMaxWidth().clickable(onClickLabel="复制文本",onClick=copyTextAction(text,"日志与结果"))) {Text(text,color=color,fontSize=13.sp,modifier=Modifier.padding(12.dp))}
+    Surface(shape=watchContentShape,color=watchCard,modifier=Modifier.fillMaxWidth().clickable(onClickLabel="复制文本",onClick=copyTextAction(text,"日志与结果"))) {Text(text,color=color,fontSize=13.sp,modifier=Modifier.padding(12.dp))}
 }
 @Composable private fun WatchInteraction(request:ScriptInteraction,embedded:Boolean=false) {
     key(request) {
@@ -196,10 +219,16 @@ private val watchCard=Color(0xFF20242B)
         DisposableEffect(request) {onDispose {app.voiceInputActive=false}}
         val content:@Composable ()->Unit = {
             Surface(Modifier.fillMaxSize(),color=Color.Black) {
-                LazyColumn(modifier=Modifier.fillMaxSize(),contentPadding=PaddingValues(horizontal=24.dp,vertical=30.dp),verticalArrangement=Arrangement.spacedBy(8.dp,Alignment.CenterVertically),horizontalAlignment=Alignment.CenterHorizontally) {
-                    item {Text(request.title,fontSize=16.sp,textAlign=androidx.compose.ui.text.style.TextAlign.Center,modifier=Modifier.fillMaxWidth())}
-                    if(request.content.isNotBlank()) item {Text(request.content,fontSize=12.sp,color=Color.LightGray,textAlign=androidx.compose.ui.text.style.TextAlign.Center,modifier=Modifier.fillMaxWidth())}
-                    if(request.kind=="input") item {OutlinedTextField(text,{if(it.length<=10000) text=it},modifier=Modifier.fillMaxWidth(),textStyle=LocalTextStyle.current.copy(fontSize=14.sp),maxLines=4,shape=RoundedCornerShape(16.dp),trailingIcon={
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                val horizontalInset=maxWidth*.12f
+                val headingInset=maxWidth*.04f
+                val verticalInset=maxHeight*.16f
+                val footerHeight=52.dp
+                Column(Modifier.fillMaxSize(),horizontalAlignment=Alignment.CenterHorizontally) {
+                LazyColumn(modifier=Modifier.weight(1f).fillMaxWidth().padding(start=horizontalInset,end=horizontalInset,top=verticalInset,bottom=maxOf(0.dp,verticalInset-footerHeight)),contentPadding=PaddingValues(vertical=4.dp),verticalArrangement=Arrangement.spacedBy(8.dp,Alignment.CenterVertically),horizontalAlignment=Alignment.CenterHorizontally) {
+                    item {Text(request.title,fontSize=16.sp,textAlign=androidx.compose.ui.text.style.TextAlign.Center,modifier=Modifier.fillMaxWidth().padding(horizontal=headingInset))}
+                    if(request.content.isNotBlank()) item {Text(request.content,fontSize=12.sp,color=Color.LightGray,textAlign=androidx.compose.ui.text.style.TextAlign.Center,modifier=Modifier.fillMaxWidth().padding(horizontal=headingInset/2))}
+                    if(request.kind=="input") item {OutlinedTextField(text,{if(it.length<=10000) text=it},modifier=Modifier.fillMaxWidth(),textStyle=LocalTextStyle.current.copy(fontSize=14.sp),maxLines=4,shape=watchContentShape,trailingIcon={
                         IconButton(enabled=!voicePending,onClick={
                             focus.clearFocus()
                             app.voiceInputActive=true
@@ -218,16 +247,31 @@ private val watchCard=Color(0xFF20242B)
                         }) {Glyph("mic",watchGreen,Modifier.size(20.dp),"语音输入")}
                     })}
                     if(request.kind in listOf("select","multiSelect")) itemsIndexed(request.options) {index,label->
-                        Surface(onClick={if(request.kind=="select") request.respond(index) else selected=if(index in selected) selected-index else selected+index},shape=RoundedCornerShape(20.dp),color=if(index in selected) Color(0xFF35532B) else watchCard) {
+                        Surface(onClick={if(request.kind=="select") request.respond(index) else selected=if(index in selected) selected-index else selected+index},shape=watchContentShape,color=if(index in selected) Color(0xFF35532B) else watchCard) {
                             Row(Modifier.fillMaxWidth().heightIn(min=48.dp).padding(12.dp),verticalAlignment=Alignment.CenterVertically) {Text(label,fontSize=14.sp,modifier=Modifier.weight(1f));if(index in selected) Glyph("check",watchGreen,Modifier.size(18.dp))}
                         }
                     }
-                    item {
-                        Row(Modifier.fillMaxWidth().padding(top=12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick={request.respond(null)},modifier=Modifier.weight(1f)) {Text("取消",maxLines=1)}
-                            if(request.kind!="select") Button(onClick={request.respond(when(request.kind) {"input"->text;"multiSelect"->selected.sorted();else->true})},modifier=Modifier.weight(1f)) {Text("确定",maxLines=1)}
+
+                }
+                if(request.kind=="select") Box(Modifier.fillMaxWidth().padding(bottom=4.dp),contentAlignment=Alignment.Center) {
+                    IconButton(onClick={request.respond(null)},modifier=Modifier.size(48.dp)) {
+                        Box(Modifier.size(32.dp).background(watchCard,androidx.compose.foundation.shape.CircleShape),contentAlignment=Alignment.Center) {
+                            Glyph("x",watchGreen,Modifier.size(20.dp),"取消")
                         }
                     }
+                } else Row(Modifier.fillMaxWidth().padding(top=4.dp).height(48.dp),horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+                    Surface(onClick={request.respond(null)},modifier=Modifier.weight(1f).fillMaxHeight(),shape=RoundedCornerShape(topStart=4.dp,topEnd=4.dp),color=MaterialTheme.colorScheme.surface) {
+                        Box(Modifier.fillMaxSize().padding(end=24.dp,bottom=4.dp),contentAlignment=Alignment.CenterEnd) {
+                            Glyph("x",MaterialTheme.colorScheme.primary,Modifier.size(20.dp),"取消")
+                        }
+                    }
+                    Surface(onClick={request.respond(when(request.kind) {"input"->text;"multiSelect"->selected.sorted();else->true})},modifier=Modifier.weight(1f).fillMaxHeight(),shape=RoundedCornerShape(topStart=4.dp,topEnd=4.dp),color=MaterialTheme.colorScheme.surface) {
+                        Box(Modifier.fillMaxSize().padding(start=24.dp,bottom=4.dp),contentAlignment=Alignment.CenterStart) {
+                            Glyph("check",MaterialTheme.colorScheme.primary,Modifier.size(20.dp),"确定")
+                        }
+                    }
+                }
+                }
                 }
             }
         }

@@ -14,10 +14,13 @@ class WatchViewModel(private val store:WatchStore,private val runner:ScriptRunne
     val interaction=MutableStateFlow<ScriptInteraction?>(null)
     private var background=false
     private var control:RunControl?=null
-    fun run(document:ScriptDocument) {
+    var returnToWatchFace=false
+        private set
+    fun run(document:ScriptDocument,fromWatchFace:Boolean=false) {
         if(control!=null) return
-        background=false
         val input=store.runData(document.item.id) ?: return
+        background=false
+        returnToWatchFace=fromWatchFace
         val version=input.third
         val current=input.first
         val item=current.item

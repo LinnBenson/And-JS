@@ -100,8 +100,8 @@ import java.io.File
                         val snapshot by watch.snapshot.collectAsState()
                         val execution by watch.execution.collectAsState()
                         if(widgetPreview && execution==null) WatchWidgetPreview(snapshot.scripts.filter {it.item.widget}.take(8),
-                            onRun=watch::run,onOpen={widgetPreview=false})
-                        else WatchScreen(watch,preview=true,onHome={watch.background();if(!widgetPreview) onBack()})
+                            onRun={watch.run(it,fromWatchFace=true)},onOpen={widgetPreview=false})
+                        else WatchScreen(watch,preview=true,onHome={watch.background();widgetPreview=true})
                     } ?: Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) {
                         if(error==null) CircularProgressIndicator() else Text(error!!,color=Color.White,modifier=Modifier.padding(24.dp),fontSize=13.sp)
                     }
@@ -116,31 +116,37 @@ import java.io.File
 
 @Composable private fun WatchWidgetPreview(items:List<ScriptDocument>,onRun:(ScriptDocument)->Unit,onOpen:()->Unit) {
     val feedbackView=androidx.compose.ui.platform.LocalView.current
+    var pressedIndex by remember(items) {mutableStateOf<Int?>(null)}
     BoxWithConstraints(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) {
         val diameter=minOf(maxWidth,maxHeight)
         val thickness=diameter.value*.21f
         val radius=(diameter.value-8f-thickness)/2f
         val gap=Math.toDegrees(3.0/radius).toFloat()
         Canvas(Modifier.fillMaxSize().pointerInput(items) {
-            detectTapGestures {point->
+            fun hit(point:Offset):Int? {
                 val x=point.x-size.width/2f;val y=point.y-size.height/2f
                 val distance=sqrt(x*x+y*y)
                 val r=radius.dp.toPx()
-                if(items.isNotEmpty() && abs(distance-r)<=(thickness/2).dp.toPx()) {
-                    val angle=((Math.toDegrees(atan2(x.toDouble(),-y.toDouble()))+360)%360).toFloat()
-                    val step=360f/items.size
-                    val index=if(items.size==1) 0 else (angle/step).toInt().coerceAtMost(items.lastIndex)
-                    val center=if(items.size==1) 0f else (index+.5f)*step
-                    val delta=abs((angle-center+540f)%360f-180f)
-                    if(delta<=(step-gap)/2f) {feedbackView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);onRun(items[index])}
-                }
+                if(items.isEmpty() || abs(distance-r)>(thickness/2).dp.toPx()) return null
+                val angle=((Math.toDegrees(atan2(x.toDouble(),-y.toDouble()))+360)%360).toFloat()
+                val step=360f/items.size
+                val index=if(items.size==1) 0 else (angle/step).toInt().coerceAtMost(items.lastIndex)
+                val center=if(items.size==1) 0f else (index+.5f)*step
+                val delta=abs((angle-center+540f)%360f-180f)
+                return index.takeIf {delta<=(step-gap)/2f}
             }
+            detectTapGestures(onPress={point->
+                pressedIndex=hit(point)
+                try {tryAwaitRelease()} finally {pressedIndex=null}
+            },onTap={point->hit(point)?.let {index->
+                feedbackView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);onRun(items[index])
+            }})
         }) {
             val r=radius.dp.toPx()
             items.forEachIndexed {index,document->
                 val sweep=360f/items.size-gap
                 val angle=if(items.size==1) 0f else (index+.5f)*360f/items.size
-                drawArc(Color(scriptColorPair(document.item.color).first),angle-90f-sweep/2f,sweep,false,
+                drawArc(Color(scriptColorPair(document.item.color).first).copy(alpha=if(pressedIndex==index) 1f else .85f),angle-90f-sweep/2f,sweep,false,
                     topLeft=Offset(center.x-r,center.y-r),size=Size(r*2,r*2),style=Stroke(thickness.dp.toPx(),cap=StrokeCap.Butt))
                 drawIntoCanvas {canvas->
                     val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
@@ -161,8 +167,18 @@ import java.io.File
         }
         items.forEachIndexed {index,document->
             val angle=if(items.size==1) 0.0 else (index+.5)*2*PI/items.size
+            val interaction=remember(document.item.id) {androidx.compose.foundation.interaction.MutableInteractionSource()}
+            LaunchedEffect(interaction) {
+                interaction.interactions.collect {event->
+                    when(event) {
+                        is androidx.compose.foundation.interaction.PressInteraction.Press->pressedIndex=index
+                        is androidx.compose.foundation.interaction.PressInteraction.Release,
+                        is androidx.compose.foundation.interaction.PressInteraction.Cancel->if(pressedIndex==index) pressedIndex=null
+                    }
+                }
+            }
             Glyph(document.item.icon,Color(scriptColorPair(document.item.color).second),
-                Modifier.offset((sin(angle)*(radius-thickness/2+16f)).dp,(-cos(angle)*(radius-thickness/2+16f)).dp).size(28.dp).clickable {feedbackView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);onRun(document)}.padding(4.dp),document.item.name)
+                Modifier.offset((sin(angle)*(radius-thickness/2+16f)).dp,(-cos(angle)*(radius-thickness/2+16f)).dp).size(28.dp).clickable(interactionSource=interaction,indication=null) {feedbackView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);onRun(document)}.padding(4.dp),document.item.name)
         }
         Column(horizontalAlignment=Alignment.CenterHorizontally,modifier=Modifier.clickable(onClick=onOpen)) {
             Image(painterResource(R.drawable.app_symbol),"打开 And JS",Modifier.size(width=50.dp,height=34.dp))
