@@ -197,6 +197,7 @@ private val watchContentShape=RoundedCornerShape(8.dp)
 @Composable private fun WatchTextCard(text:String,color:Color=Color.White) {
     Surface(shape=watchContentShape,color=watchCard,modifier=Modifier.fillMaxWidth().clickable(onClickLabel="复制文本",onClick=copyTextAction(text,"日志与结果"))) {Text(text,color=color,fontSize=13.sp,modifier=Modifier.padding(12.dp))}
 }
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun WatchInteraction(request:ScriptInteraction,embedded:Boolean=false) {
     key(request) {
         var text by rememberSaveable {mutableStateOf(request.initial)}
@@ -204,6 +205,7 @@ private val watchContentShape=RoundedCornerShape(8.dp)
         val context=androidx.compose.ui.platform.LocalContext.current
         val app=context.applicationContext as io.todu.andjs.AndJsApplication
         val focus=androidx.compose.ui.platform.LocalFocusManager.current
+        val inputInteraction=remember {androidx.compose.foundation.interaction.MutableInteractionSource()}
         var voicePending by rememberSaveable {mutableStateOf(false)}
         val voice=androidx.activity.compose.rememberLauncherForActivityResult(
             androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
@@ -225,10 +227,13 @@ private val watchContentShape=RoundedCornerShape(8.dp)
                 val verticalInset=maxHeight*.16f
                 val footerHeight=52.dp
                 Column(Modifier.fillMaxSize(),horizontalAlignment=Alignment.CenterHorizontally) {
-                LazyColumn(modifier=Modifier.weight(1f).fillMaxWidth().padding(start=horizontalInset,end=horizontalInset,top=verticalInset,bottom=maxOf(0.dp,verticalInset-footerHeight)),contentPadding=PaddingValues(vertical=4.dp),verticalArrangement=Arrangement.spacedBy(8.dp,Alignment.CenterVertically),horizontalAlignment=Alignment.CenterHorizontally) {
+                LazyColumn(modifier=Modifier.weight(1f).fillMaxWidth().padding(start=horizontalInset,end=horizontalInset,bottom=maxOf(0.dp,verticalInset-footerHeight)),contentPadding=PaddingValues(top=verticalInset+4.dp,bottom=4.dp),verticalArrangement=Arrangement.spacedBy(8.dp,Alignment.CenterVertically),horizontalAlignment=Alignment.CenterHorizontally) {
                     item {Text(request.title,fontSize=16.sp,textAlign=androidx.compose.ui.text.style.TextAlign.Center,modifier=Modifier.fillMaxWidth().padding(horizontal=headingInset))}
                     if(request.content.isNotBlank()) item {Text(request.content,fontSize=12.sp,color=Color.LightGray,textAlign=androidx.compose.ui.text.style.TextAlign.Center,modifier=Modifier.fillMaxWidth().padding(horizontal=headingInset/2))}
-                    if(request.kind=="input") item {OutlinedTextField(text,{if(it.length<=10000) text=it},modifier=Modifier.fillMaxWidth(),textStyle=LocalTextStyle.current.copy(fontSize=14.sp),maxLines=4,shape=watchContentShape,trailingIcon={
+                    if(request.kind=="input") item {androidx.compose.foundation.text.BasicTextField(text,{if(it.length<=10000) text=it},modifier=Modifier.fillMaxWidth().height(48.dp),textStyle=LocalTextStyle.current.copy(fontSize=14.sp,color=MaterialTheme.colorScheme.onSurface),maxLines=4,interactionSource=inputInteraction,cursorBrush=androidx.compose.ui.graphics.SolidColor(watchGreen),decorationBox={innerTextField->
+                        OutlinedTextFieldDefaults.DecorationBox(value=text,innerTextField={Box(Modifier.height(48.dp),contentAlignment=Alignment.CenterStart) {innerTextField()}},enabled=true,singleLine=false,visualTransformation=androidx.compose.ui.text.input.VisualTransformation.None,interactionSource=inputInteraction,contentPadding=PaddingValues(horizontal=12.dp),container={
+                            OutlinedTextFieldDefaults.Container(enabled=true,isError=false,interactionSource=inputInteraction,shape=watchContentShape)
+                        },trailingIcon={
                         IconButton(enabled=!voicePending,onClick={
                             focus.clearFocus()
                             app.voiceInputActive=true
@@ -245,10 +250,13 @@ private val watchContentShape=RoundedCornerShape(8.dp)
                                 android.widget.Toast.makeText(context,"无法打开系统语音输入",android.widget.Toast.LENGTH_SHORT).show()
                             }
                         }) {Glyph("mic",watchGreen,Modifier.size(20.dp),"语音输入")}
+                        })
                     })}
                     if(request.kind in listOf("select","multiSelect")) itemsIndexed(request.options) {index,label->
+                        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
                         Surface(onClick={if(request.kind=="select") request.respond(index) else selected=if(index in selected) selected-index else selected+index},shape=watchContentShape,color=if(index in selected) Color(0xFF35532B) else watchCard) {
-                            Row(Modifier.fillMaxWidth().heightIn(min=48.dp).padding(12.dp),verticalAlignment=Alignment.CenterVertically) {Text(label,fontSize=14.sp,modifier=Modifier.weight(1f));if(index in selected) Glyph("check",watchGreen,Modifier.size(18.dp))}
+                            Row(Modifier.fillMaxWidth().heightIn(min=40.dp).padding(horizontal=12.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically) {Text(label,fontSize=14.sp,modifier=Modifier.weight(1f));if(index in selected) Glyph("check",watchGreen,Modifier.size(18.dp))}
+                        }
                         }
                     }
 
