@@ -89,6 +89,18 @@ class AndroidPlatformApi(private val context:Context):PlatformApi {
                     }
                     true
                 }
+                "closeApp"->{
+                    val app=context.applicationContext
+                    val handler=android.os.Handler(android.os.Looper.getMainLooper())
+                    check(handler.post {
+                        // Terminate even if a window or task fails to close cleanly.
+                        handler.postDelayed({android.os.Process.killProcess(android.os.Process.myPid())},100L)
+                        try {app.stopService(Intent(app,io.todu.andjs.widget.OverlayRunService::class.java))} catch(_:Exception) {}
+                        val manager=app.getSystemService(android.app.ActivityManager::class.java)
+                        try {manager?.appTasks?.forEach {task->try {task.finishAndRemoveTask()} catch(_:Exception) {}}} catch(_:Exception) {}
+                    }) {"无法关闭 And JS"}
+                    true
+                }
                 "returnToWatchFace"->{
                     require(watch) {"仅手表支持返回表盘"}
                     context.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

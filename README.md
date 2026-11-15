@@ -146,3 +146,5 @@ Copyright 2026 LinnBenson.
 And JS 采用 [Apache License 2.0](LICENSE) 开源。第三方组件及资源遵循各自的许可证，相关说明见 [第三方资料](docs/third-party/) 和 [随应用提供的许可证](app/src/main/assets/licenses/)。
 
 `andjs.util.time()` 返回当前 Unix 整数秒；`andjs.util.date(format, timestamp)` 按设备本地时区格式化秒级时间戳，默认格式为 `yyyy-MM-dd HH:mm:ss`，省略时间戳时使用当前时间。
+
+`andjs.system.closeApp()` 可关闭 And JS 的弹窗、悬浮窗口和应用任务，并结束当前应用进程。调用后的脚本代码不再执行；未保存的编辑会丢失，已保存的数据保留。手机手表预览中调用也会关闭手机上的 And JS。

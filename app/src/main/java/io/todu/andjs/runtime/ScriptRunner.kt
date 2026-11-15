@@ -318,7 +318,7 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                     Undefined.instance
                 }
                 platform?.let {host->
-                    listOf("notes" to listOf("get","set"),"clipboard" to listOf("get","set"),"cache" to listOf("get","set","remove"),"health" to listOf("status","current","summary","read"),"device" to listOf("info","battery","network","memory","storage","screen","power","sensors","vibrator","location","locationStatus","wifi","bluetooth"),"system" to listOf("getBrightness","setBrightness","getVolume","setVolume","openSettings","setAutoBrightness","getScreenTimeout","setScreenTimeout","getRotation","setRotation","vibrate","cancelVibration","notify","cancelNotification","speak","playAudio","toast","returnToWatchFace","openRecents","openNotificationShade","openUrl","openApp","share"),"files" to listOf("read","write","append","exists","list","mkdir","delete","copy","move","info"),"permissions" to listOf("status")).forEach {(space,methods)->
+                    listOf("notes" to listOf("get","set"),"clipboard" to listOf("get","set"),"cache" to listOf("get","set","remove"),"health" to listOf("status","current","summary","read"),"device" to listOf("info","battery","network","memory","storage","screen","power","sensors","vibrator","location","locationStatus","wifi","bluetooth"),"system" to listOf("getBrightness","setBrightness","getVolume","setVolume","openSettings","setAutoBrightness","getScreenTimeout","setScreenTimeout","getRotation","setRotation","vibrate","cancelVibration","notify","cancelNotification","speak","playAudio","toast","closeApp","returnToWatchFace","openRecents","openNotificationShade","openUrl","openApp","share"),"files" to listOf("read","write","append","exists","list","mkdir","delete","copy","move","info"),"permissions" to listOf("status")).forEach {(space,methods)->
                         val target=objectValue(api,space)
                         methods.forEach {name->function(target,name) {args->
                             val start=System.nanoTime()
@@ -337,6 +337,11 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                                 false
                             }
                             finally {if(space=="health" || (space=="system" && name in listOf("speak","playAudio")) || (space=="device" && name=="location")) waitingNanos+=System.nanoTime()-start}
+                            if(space=="system" && name=="closeApp") {
+                                control.closeRequested.set(true)
+                                control.stop()
+                                throw RunAborted(true)
+                            }
                             checkRun()
                             js(result)
                         }}
