@@ -16,7 +16,7 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /** One cookie session per script; no automatic retries of side-effecting requests. */
-class HttpSession(private val root:File,private val control:RunControl,private val lowMemory:Boolean=false) {
+class HttpSession(private val root:File,private val control:RunControl,private val lowMemory:Boolean=false,private val dns:Dns=Dns.SYSTEM) {
     companion object {
         private val cleanedRoots=mutableSetOf<String>()
         @Synchronized private fun cleanAbandoned(root:File) {
@@ -35,7 +35,8 @@ class HttpSession(private val root:File,private val control:RunControl,private v
             cookies.removeAll {it.expiresAt<System.currentTimeMillis()};cookies.filter {it.matches(url)}
         }
     }
-    private val base=OkHttpClient.Builder().retryOnConnectionFailure(false).cookieJar(jar).build()
+    private val requestDns=InterruptibleDns(dns,control)
+    private val base=OkHttpClient.Builder().retryOnConnectionFailure(false).cookieJar(jar).dns(requestDns).build()
     fun close() { base.dispatcher.cancelAll();base.connectionPool.evictAll(); base.dispatcher.executorService.shutdown();temporaryFiles.forEach {it.delete()};temporaryFiles.clear();clearCookies() }
     fun clearCookies() {synchronized(cookies) {cookies.clear()}}
     private fun file(name:String):File {
@@ -89,7 +90,8 @@ class HttpSession(private val root:File,private val control:RunControl,private v
         }
         require(!(method in listOf("GET","HEAD") && body!=null)) {"GET/HEAD 不支持请求体"}
         builder.method(method,body)
-        val client=base.newBuilder().callTimeout(timeout(o,"timeout",30000),TimeUnit.MILLISECONDS)
+        val callTimeout=timeout(o,"timeout",30000)
+        val client=base.newBuilder().callTimeout(callTimeout,TimeUnit.MILLISECONDS)
             .connectTimeout(timeout(o,"connectTimeout",10000),TimeUnit.MILLISECONDS)
             .readTimeout(timeout(o,"readTimeout",30000),TimeUnit.MILLISECONDS)
             .writeTimeout(timeout(o,"writeTimeout",30000),TimeUnit.MILLISECONDS)
@@ -102,6 +104,7 @@ class HttpSession(private val root:File,private val control:RunControl,private v
         val call=client.newCall(builder.build())
         val release=control.registerStop {call.cancel()}
         val start=System.nanoTime()
+        requestDns.begin(start+TimeUnit.MILLISECONDS.toNanos(callTimeout))
         try {
             call.execute().use {response->
                 val headers=JSONObject();response.headers.names().forEach {headers.put(it.lowercase(java.util.Locale.ROOT),JSONArray(response.headers.values(it)))}
@@ -138,6 +141,53 @@ class HttpSession(private val root:File,private val control:RunControl,private v
                     return result.put("size",count).put("elapsedMs",(System.nanoTime()-start)/1_000_000)
                 } finally {temp?.delete()}
             }
-        } finally {release()}
+        } finally {requestDns.end();release()}
+    }
+}
+
+/** System DNS may ignore both socket cancellation and thread interruption. Bound the caller's
+ * wait independently, and cap abandoned native lookups across all script sessions. */
+private class InterruptibleDns(private val delegate:Dns,private val control:RunControl):Dns {
+    companion object {
+        private val workers=java.util.concurrent.ThreadPoolExecutor(
+            0,2,30,TimeUnit.SECONDS,java.util.concurrent.SynchronousQueue<Runnable>(),
+            java.util.concurrent.ThreadFactory {task->Thread(task,"AndJS-DNS").apply {isDaemon=true}}
+        )
+    }
+    // OkHttp's synchronous execute resolves names on the calling thread, including redirects.
+    // Keep one resolver identity per session so connection pooling continues to work.
+    private val deadline=ThreadLocal<Long>()
+    fun begin(value:Long) {deadline.set(value)}
+    fun end() {deadline.remove()}
+    override fun lookup(hostname:String):List<java.net.InetAddress> {
+        val until=checkNotNull(deadline.get()) {"缺少网络请求时限"}
+        fun remaining():Long {
+            if(control.stopped.get()) throw java.io.InterruptedIOException("请求已停止")
+            return (until-System.nanoTime()).also {
+                if(it<=0) throw java.net.SocketTimeoutException("域名解析超时")
+            }
+        }
+        remaining()
+        val result=try {
+            workers.submit(java.util.concurrent.Callable {delegate.lookup(hostname)})
+        } catch(e:java.util.concurrent.RejectedExecutionException) {
+            throw java.net.UnknownHostException("域名解析繁忙，请稍后重试").apply {initCause(e)}
+        }
+        try {
+            while(true) {
+                try {
+                    val addresses=result.get(minOf(remaining(),TimeUnit.MILLISECONDS.toNanos(50)),TimeUnit.NANOSECONDS)
+                    remaining()
+                    return addresses
+                } catch(_:java.util.concurrent.TimeoutException) {
+                    // Recheck stop and the whole-request deadline even if native DNS is stuck.
+                }
+            }
+        } catch(e:java.util.concurrent.ExecutionException) {
+            throw (e.cause as? java.io.IOException ?: java.io.IOException("域名解析失败",e.cause))
+        } catch(e:InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw java.io.InterruptedIOException("域名解析已中断").apply {initCause(e)}
+        } finally {result.cancel(true)}
     }
 }

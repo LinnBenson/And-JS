@@ -321,10 +321,21 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                     listOf("clipboard" to listOf("get","set"),"cache" to listOf("get","set","remove"),"health" to listOf("status","current","summary","read"),"device" to listOf("info","battery","network","memory","storage","screen","power","sensors","vibrator","location","locationStatus","wifi","bluetooth"),"system" to listOf("getBrightness","setBrightness","getVolume","setVolume","openSettings","setAutoBrightness","getScreenTimeout","setScreenTimeout","getRotation","setRotation","vibrate","cancelVibration","notify","cancelNotification","speak","playAudio","toast","returnToWatchFace","openRecents","openNotificationShade","openUrl","share"),"files" to listOf("read","write","append","exists","list","mkdir","delete","copy","move","info"),"permissions" to listOf("status")).forEach {(space,methods)->
                         val target=objectValue(api,space)
                         methods.forEach {name->function(target,name) {args->
-                            val json=Context.toString(NativeJSON.stringify(cx,scope,cx.newArray(scope,args),null,null))
                             val start=System.nanoTime()
-                            val result=try {host.call(space,name,org.json.JSONArray(json),control)}
-                            catch(e:Exception) {if(control.stopped.get()) throw RunAborted(true);throw e}
+                            val result=try {
+                                val json=Context.toString(NativeJSON.stringify(cx,scope,cx.newArray(scope,args),null,null))
+                                host.call(space,name,org.json.JSONArray(json),control)
+                            } catch(e:Exception) {
+                                if(control.stopped.get()) throw RunAborted(true)
+                                if(e is kotlinx.coroutines.CancellationException) throw e
+                                if(space!="system" || name !in listOf("returnToWatchFace","speak")) throw e
+                                if(logs.size<=maxLogs) {
+                                    logs.add(if(logs.size<maxLogs) LogEntry("error",("andjs.$space.$name："+(e.message ?: "调用失败")).take(2_000))
+                                        else LogEntry("warn","日志已达到 $maxLogs 条上限"))
+                                    onLogs(logs.toList())
+                                }
+                                false
+                            }
                             finally {if(space=="health" || (space=="system" && name in listOf("speak","playAudio")) || (space=="device" && name=="location")) waitingNanos+=System.nanoTime()-start}
                             checkRun()
                             js(result)

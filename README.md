@@ -106,6 +106,8 @@ options.start/end 为 Unix 毫秒，默认今天零点到现在。历史读取�
 
 `andjs.log.img(source, maxWidth)` 居中显示图片日志，接受图片 URL、本机 API 路径、Base64，以及 `andjs.http` 的 base64/file 响应对象。图片按比例缩小，手表限宽 160dp、单图原始数据不超过 512KB；图片预览日志总量另有限制：手表约 1 MB，手机约 4 MB。具体限制见接口声明。
 
+图片日志预览支持点击右上角关闭按钮返回；桌面悬浮运行中也可使用系统返回键关闭预览。
+
 
 编辑器顶部的运行按钮直接运行当前内容，无需保存或离开编辑器。脚本修改已有参数时会写回参数，未保存的代码不会自动保存。
 
@@ -120,6 +122,8 @@ options.start/end 为 Unix 毫秒，默认今天零点到现在。历史读取�
 每个项目以自身配色显示为紧凑卡片。小部件不定时刷新、不在后台执行脚本；允许悬浮窗后，点击手机小部件直接在桌面显示运行与交互弹窗；未授权时进入应用运行。桌面实际尺寸由启动器网格决定。
 
 系统操作：`andjs.system.toast(text, duration)` 显示系统提示；手表可用 `andjs.system.returnToWatchFace()` 返回表盘。`andjs.system.openRecents()` 和 `andjs.system.openNotificationShade()` 需要在权限授权中开启“系统操作”无障碍服务，具体支持依设备而定。该服务不读取屏幕内容、不订阅操作事件；开启后由系统保持绑定，关闭授权即可停用。
+
+`andjs.system.speak` 和 `andjs.system.returnToWatchFace` 调用失败时记录错误日志、返回 `false`，脚本继续执行；手动停止和脚本运行超时仍会终止执行。
 
 `andjs.text(array)` 将数组用换行符拼接为文本。`andjs.value.all()` 和 `andjs.global.all()` 返回全部参数或全局变量的独立对象快照。
 

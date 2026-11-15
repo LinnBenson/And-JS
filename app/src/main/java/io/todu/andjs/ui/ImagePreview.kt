@@ -7,6 +7,8 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
@@ -15,6 +17,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.dp
 
 @Composable fun ImagePreview(bitmap:ImageBitmap,watch:Boolean=false,onClose:()->Unit) {
     // The decoded log thumbnail is shared with the viewer; no second decode or network request.
@@ -44,7 +47,10 @@ import androidx.compose.ui.layout.ContentScale
                     scaleX=scale;scaleY=scale;translationX=offset.x;translationY=offset.y
                 })
             }
-
+            IconButton(onClick=onClose,modifier=Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(8.dp).size(48.dp)
+                .background(Color.Black.copy(alpha=.55f),androidx.compose.foundation.shape.CircleShape)) {
+                Glyph("x",Color.White,Modifier.size(24.dp),"关闭图片预览")
+            }
         }
     }
 }
