@@ -12,8 +12,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.todu.andjs.ui.*
 import io.todu.andjs.ui.theme.AndJsTheme
 class MainActivity : ComponentActivity() {
+    private val complicationRequest=androidx.compose.runtime.mutableStateOf<String?>(null)
     private val widgetRequest=androidx.compose.runtime.mutableStateOf<String?>(null)
-    override fun onNewIntent(intent:android.content.Intent) {super.onNewIntent(intent);setIntent(intent);widgetRequest.value=io.todu.andjs.widget.ScriptWidgetProvider.requestedId(this,intent)}
+    override fun onNewIntent(intent:android.content.Intent) {super.onNewIntent(intent);setIntent(intent);widgetRequest.value=io.todu.andjs.widget.ScriptWidgetProvider.requestedId(this,intent);complicationRequest.value=io.todu.andjs.widget.WatchComplicationSlots.requestedScript(this,intent)}
     private val handler=android.os.Handler(android.os.Looper.getMainLooper())
     private var stopWork:(()->Unit)?=null
     private val exitTask=Runnable {if(!isFinishing && !(application as AndJsApplication).voiceInputActive) {stopWork?.invoke();finishAndRemoveTask()}}
@@ -56,6 +57,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         widgetRequest.value=if(savedInstanceState==null) io.todu.andjs.widget.ScriptWidgetProvider.requestedId(this,intent) else null
+        complicationRequest.value=if(savedInstanceState==null) io.todu.andjs.widget.WatchComplicationSlots.requestedScript(this,intent) else null
         enableEdgeToEdge()
         if((application as AndJsApplication).isWatch) lifecycleScope.launch {try {io.todu.andjs.wear.recoverWatch(this@MainActivity)} catch(_:Exception) {}}
 
@@ -72,9 +74,10 @@ class MainActivity : ComponentActivity() {
                 val watch:io.todu.andjs.wear.WatchViewModel=viewModel(factory=object:ViewModelProvider.Factory {
                     @Suppress("UNCHECKED_CAST") override fun <T:ViewModel> create(modelClass:Class<T>):T=io.todu.andjs.wear.WatchViewModel(app.watchStore,app.runner) as T
                 })
-                androidx.compose.runtime.LaunchedEffect(widgetRequest.value) {
-                    val id=widgetRequest.value
-                    if(id!=null) {widgetRequest.value=null;app.watchStore.state.value.scripts.find {it.item.id==id && it.item.widget}?.let {window.decorView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);watch.run(it)}}
+                androidx.compose.runtime.LaunchedEffect(widgetRequest.value,complicationRequest.value) {
+                    val shortcut=complicationRequest.value
+                    val id=shortcut ?: widgetRequest.value
+                    if(id!=null) {widgetRequest.value=null;complicationRequest.value=null;app.watchStore.state.value.scripts.find {it.item.id==id && (it.item.widget || shortcut==id)}?.let {window.decorView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);watch.run(it)}}
                 }
                 stopWork=watch::background
                 WatchScreen(watch) {moveTaskToBack(true)}

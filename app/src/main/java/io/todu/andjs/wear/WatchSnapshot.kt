@@ -6,13 +6,15 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.security.MessageDigest
 
-data class WatchSnapshot(val scripts:List<ScriptDocument> = emptyList(),val globals:List<ScriptParameter> = emptyList()) {
+data class WatchSnapshot(val scripts:List<ScriptDocument> = emptyList(),val globals:List<ScriptParameter> = emptyList(),val notes:List<String> = List(4) {""}) {
+    init {require(notes.size==4 && notes.all {it.length<=MAX_NOTE_LENGTH}) {"便签最多 4 条，每条最多 4000 字符"}}
     fun encode():String = JSONObject().put("schema",1).put("scripts",JSONArray().apply {
         scripts.forEach {d->put(JSONObject().put("id",d.item.id).put("name",d.item.name).put("icon",d.item.icon).put("color",d.item.color)
             .put("widget",d.item.widget).put("source",d.source).put("parameters",parameters(d.item.parameters)))}
-    }).put("globals",parameters(globals)).toString()
+    }).put("globals",parameters(globals)).apply {if(notes.any {it.isNotEmpty()}) put("notes",JSONArray(notes))}.toString()
     companion object {
         const val MAX_BYTES=2*1024*1024
+        const val MAX_NOTE_LENGTH=4000
         fun hash(text:String):String = MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)).joinToString("") {"%02x".format(it.toInt() and 255)}
         private fun parameters(values:List<ScriptParameter>)=JSONArray().apply {values.forEach {put(JSONObject().put("key",it.key).put("type",it.type).put("value",it.value))}}
         private fun decodeParameters(array:JSONArray):List<ScriptParameter> {
@@ -29,7 +31,11 @@ data class WatchSnapshot(val scripts:List<ScriptDocument> = emptyList(),val glob
                 ScriptDocument(Script(id,name,"",d.getString("icon"),decodeParameters(d.getJSONArray("parameters")),d.getString("color"),d.optBoolean("widget",false)),source)
             }
             require(docs.map {it.item.id}.distinct().size==docs.size)
-            return WatchSnapshot(docs,decodeParameters(json.getJSONArray("globals")))
+            val notes=if(json.has("notes")) {
+                val array=json.getJSONArray("notes");require(array.length()==4)
+                (0 until 4).map {array.get(it).also {value->require(value is String)} as String}
+            } else List(4) {""}
+            return WatchSnapshot(docs,decodeParameters(json.getJSONArray("globals")),notes)
         }
     }
 }

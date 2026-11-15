@@ -28,11 +28,17 @@ class HomeViewModel(private val repository: ScriptRepository, private val runner
         try {repository.save(ScriptDocument(item.copy(widget=enabled),repository.read(item.id)));refresh()} catch(_:Exception) {notice.value="保存失败"}
     }
     val watchIds=MutableStateFlow(watchSync.selection())
+    val watchNotes=MutableStateFlow(watchSync.notes())
+    fun saveWatchNote(index:Int,text:String,onComplete:(Boolean)->Unit)=viewModelScope.launch {
+        try {watchSync.saveNote(index,text);watchNotes.value=watchSync.notes();refreshWatch();onComplete(true)}
+        catch(e:kotlinx.coroutines.CancellationException) {throw e}
+        catch(_:Exception) {notice.value="便签保存失败，请重试";onComplete(false)}
+    }
     val watchDirty=MutableStateFlow(false)
     val watchBusy=MutableStateFlow(false)
     private suspend fun watchSnapshot():io.todu.andjs.wear.WatchSnapshot {
         val items=repository.load().associateBy {it.id}
-        return io.todu.andjs.wear.WatchSnapshot(watchIds.value.mapNotNull {id->items[id]?.let {ScriptDocument(it.copy(widget=id in watchSync.widgetIds()),repository.read(id))}},globalRepository.load())
+        return io.todu.andjs.wear.WatchSnapshot(watchIds.value.mapNotNull {id->items[id]?.let {ScriptDocument(it.copy(widget=id in watchSync.widgetIds()),repository.read(id))}},globalRepository.load(),watchSync.notes())
     }
     suspend fun previewSnapshot()=watchSnapshot()
     fun refreshWatchConnection()=viewModelScope.launch {try {watchSync.recover()} catch(_:Exception) {};refreshWatch()}

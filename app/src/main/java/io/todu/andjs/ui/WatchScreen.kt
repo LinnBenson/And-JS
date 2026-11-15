@@ -44,23 +44,48 @@ private val watchCard=Color(0xFF20242B)
     val feedbackView=androidx.compose.ui.platform.LocalView.current
     fun clickFeedback() {feedbackView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)}
     var permissions by rememberSaveable {mutableStateOf(false)}
+    var noteIndex by rememberSaveable {mutableStateOf<Int?>(null)}
     val snapshot by model.snapshot.collectAsStateWithLifecycle()
     val run by model.execution.collectAsStateWithLifecycle()
     val interaction by model.interaction.collectAsStateWithLifecycle()
+    BackHandler(enabled=noteIndex!=null) {noteIndex=null}
     MaterialTheme(colorScheme=darkColorScheme(primary=watchGreen,onPrimary=Color.Black,background=Color.Black,surface=watchCard,onSurface=Color.White)) {
         Surface(Modifier.fillMaxSize(),color=Color.Black) {
-            if(permissions) WatchPermissionsScreen(preview) {permissions=false}
+            if(noteIndex!=null) {
+                val index=noteIndex!!
+                LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(horizontal=24.dp,vertical=28.dp),
+                    verticalArrangement=Arrangement.spacedBy(12.dp),horizontalAlignment=Alignment.CenterHorizontally) {
+                    item {IconButton(onClick={noteIndex=null}) {Glyph("back",watchGreen,Modifier.size(22.dp),"关闭便签")}}
+                    item {androidx.compose.foundation.text.selection.SelectionContainer {
+                        Text(snapshot.notes[index],fontSize=14.sp,modifier=Modifier.fillMaxWidth())
+                    }}
+                }
+            }
+            else if(permissions) WatchPermissionsScreen(preview) {permissions=false}
             else if(preview && interaction!=null) WatchInteraction(interaction!!,embedded=true)
             else if(run==null) LazyColumn(contentPadding=PaddingValues(horizontal=20.dp,vertical=30.dp),verticalArrangement=Arrangement.spacedBy(8.dp),horizontalAlignment=Alignment.CenterHorizontally) {
                 item {Image(painterResource(R.drawable.app_symbol),contentDescription="And JS",modifier=Modifier.padding(bottom=8.dp).size(width=44.dp,height=30.dp))}
                 item {
+                    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
-                        IconButton(onClick={clickFeedback();permissions=true},modifier=Modifier.size(40.dp)) {
+                        IconButton(onClick={clickFeedback();permissions=true},modifier=Modifier.weight(1f).height(40.dp)) {
                             Glyph("shield",Color(0xFF9CA497),Modifier.size(18.dp),"权限授权")
                         }
-                        IconButton(onClick={clickFeedback();grid=!grid;preferences.edit().putBoolean("grid",grid).apply()},modifier=Modifier.size(40.dp)) {
+                        snapshot.notes.forEachIndexed {index,text->
+                            IconButton(enabled=text.isNotEmpty(),onClick={
+                                clickFeedback();noteIndex=index
+                                try {
+                                    val clipboard=context.getSystemService(android.content.ClipboardManager::class.java)
+                                    checkNotNull(clipboard).setPrimaryClip(android.content.ClipData.newPlainText("便签 ${index+1}",text))
+                                } catch(_:Exception) {android.widget.Toast.makeText(context,"复制失败",android.widget.Toast.LENGTH_SHORT).show()}
+                            },modifier=Modifier.weight(1f).height(40.dp).semantics {contentDescription="便签 ${index+1}"}) {
+                                Text("${index+1}",fontSize=16.sp,color=if(text.isNotEmpty()) watchGreen else Color.DarkGray)
+                            }
+                        }
+                        IconButton(onClick={clickFeedback();grid=!grid;preferences.edit().putBoolean("grid",grid).apply()},modifier=Modifier.weight(1f).height(40.dp)) {
                             Glyph(if(grid) "list" else "layout-grid",Color(0xFF9CA497),Modifier.size(18.dp),if(grid) "切换列表显示" else "切换宫格显示")
                         }
+                    }
                     }
                 }
                 if(snapshot.scripts.isEmpty()) item {Text("暂无脚本",fontSize=14.sp,color=Color.Gray,modifier=Modifier.padding(vertical=20.dp))}

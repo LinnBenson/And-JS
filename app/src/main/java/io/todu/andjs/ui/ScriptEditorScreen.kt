@@ -140,8 +140,14 @@ import io.todu.andjs.runtime.ParameterValues
                 FilterChip(selected=tab==0,onClick={tab=0},label={Text("代码")})
                 FilterChip(selected=tab==1,onClick={tab=1},label={Text("参数" + if(parameters.isEmpty()) "" else " · ${parameters.size}")})
                 Spacer(Modifier.weight(1f))
-                androidx.compose.foundation.text.selection.SelectionContainer(Modifier.align(Alignment.CenterVertically).weight(2f)) {
-                    Text(document.item.id,fontSize=10.sp,color=colors.onSurfaceVariant,textAlign=androidx.compose.ui.text.style.TextAlign.End,modifier=Modifier.fillMaxWidth())
+                Box(Modifier.align(Alignment.CenterVertically).weight(2f).heightIn(min=40.dp).clickable(onClickLabel="复制脚本 ID") {
+                    val copied=runCatching {
+                        val clipboard=checkNotNull(context.getSystemService(android.content.ClipboardManager::class.java))
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("脚本 ID",document.item.id))
+                    }.isSuccess
+                    scope.launch {snackbar.showSnackbar(if(copied) "已复制脚本 ID" else "复制失败，请重试")}
+                },contentAlignment=Alignment.CenterEnd) {
+                    Text(document.item.id.take(8),maxLines=1,fontSize=10.sp,color=colors.onSurfaceVariant,textAlign=androidx.compose.ui.text.style.TextAlign.End,modifier=Modifier.fillMaxWidth())
                 }
             }
             }}

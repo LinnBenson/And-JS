@@ -22,6 +22,10 @@ import androidx.activity.compose.BackHandler
     val dirty by model.watchDirty.collectAsStateWithLifecycle()
     val busy by model.watchBusy.collectAsStateWithLifecycle()
     val message by model.message.collectAsStateWithLifecycle()
+    val notes by model.watchNotes.collectAsStateWithLifecycle()
+    var noteIndex by rememberSaveable {mutableStateOf<Int?>(null)}
+    var noteText by rememberSaveable {mutableStateOf("")}
+    var savingNote by remember {mutableStateOf(false)}
     val colors=MaterialTheme.colorScheme
     val snackbar=remember {SnackbarHostState()}
     var choosing by rememberSaveable {mutableStateOf(false)}
@@ -54,6 +58,12 @@ import androidx.activity.compose.BackHandler
                     }
                 }
             } else {
+                Row(Modifier.fillMaxWidth().padding(bottom=8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    notes.forEachIndexed {index,text->
+                        FilterChip(selected=text.isNotEmpty(),onClick={noteText=text;noteIndex=index},enabled=!busy,
+                            label={Text("便签 ${index+1}",maxLines=1)},modifier=Modifier.weight(1f))
+                    }
+                }
                 val items=ids.mapNotNull {id->state.items.find {it.id==id}}
                 if(items.isEmpty()) Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) {Text("尚未添加脚本",color=colors.onSurfaceVariant)}
                 else SortableList(items,keyOf={it.id},onMove={a,b->if(!busy) model.moveWatch(a,b)},modifier=Modifier.weight(1f),onDrop={model.selectWatch(model.watchIds.value)}) {item->
@@ -68,5 +78,13 @@ import androidx.activity.compose.BackHandler
                 }
             }
         }
+    }
+    noteIndex?.let {index->
+        AlertDialog(onDismissRequest={if(!savingNote) noteIndex=null},title={Text("便签 ${index+1}")},
+            text={OutlinedTextField(noteText,{if(it.length<=io.todu.andjs.wear.WatchSnapshot.MAX_NOTE_LENGTH) noteText=it},
+                enabled=!savingNote,modifier=Modifier.fillMaxWidth().heightIn(min=160.dp,max=280.dp),
+                placeholder={Text("输入内容")},supportingText={Text("${noteText.length}/4000")})},
+            confirmButton={TextButton(enabled=!savingNote,onClick={savingNote=true;model.saveWatchNote(index,noteText) {saved->savingNote=false;if(saved) noteIndex=null}}) {Text("保存")}},
+            dismissButton={TextButton(enabled=!savingNote,onClick={noteIndex=null}) {Text("取消")}})
     }
 }

@@ -17,6 +17,12 @@ fun <T> Task<T>.blocking():T=Tasks.await(this,30,TimeUnit.SECONDS)
 class WatchSync(private val context:Context) {
     private val prefs=context.getSharedPreferences("watch-sync",Context.MODE_PRIVATE)
     val revision=MutableStateFlow(0L)
+    fun notes():List<String> = List(4) {prefs.getString("note-$it","") ?: ""}
+    suspend fun saveNote(index:Int,text:String)=withContext(Dispatchers.IO) {
+        require(index in 0..3 && text.length<=WatchSnapshot.MAX_NOTE_LENGTH)
+        check(prefs.edit().putString("note-$index",text).commit()) {"便签保存失败"}
+        revision.value++
+    }
     @Synchronized fun selection():List<String> {
         val a=JSONArray(prefs.getString("selection","[]"));return (0 until a.length()).map {a.getString(it)}
     }
@@ -93,6 +99,7 @@ class WatchSyncService:WearableListenerService() {
         val origin=item.uri.host ?: return
         if(!app.watchStore.apply(text,origin,map.getLong("sequence"),map.getString("hash") ?: return)) return
         runCatching {androidx.wear.tiles.TileService.getUpdater(this).requestUpdate(io.todu.andjs.widget.ScriptTileService::class.java)}
+        runCatching {io.todu.andjs.widget.WatchComplicationSlots.refresh(this)}
         val ack=PutDataMapRequest.create("/andjs/ack/$origin")
         ack.dataMap.apply {putString("token",requireNotNull(map.getString("token")));putString("hash",requireNotNull(map.getString("hash")));putLong("sequence",map.getLong("sequence"))}
         client.putDataItem(ack.asPutDataRequest().setUrgent()).blocking()

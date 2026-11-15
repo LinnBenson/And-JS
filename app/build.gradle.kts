@@ -10,8 +10,8 @@ android {
         applicationId = "io.todu.andjs"
         minSdk = 26
         targetSdk = 35
-        versionCode = 79
-        versionName = "1.1.16"
+        versionCode = 82
+        versionName = "1.1.19"
     }
     splits { abi { isEnable = true; reset(); include("arm64-v8a", "armeabi-v7a"); isUniversalApk = false } }
     buildFeatures { compose = true; buildConfig = true }
@@ -20,6 +20,7 @@ android {
     buildTypes { release { isMinifyEnabled = false } }
 }
 dependencies {
+    implementation("androidx.wear.watchface:watchface-complications-data-source-ktx:1.2.1")
     implementation("com.google.zxing:core:3.5.3")
     implementation("androidx.wear.tiles:tiles:1.5.0")
     implementation("androidx.wear.protolayout:protolayout:1.3.0")

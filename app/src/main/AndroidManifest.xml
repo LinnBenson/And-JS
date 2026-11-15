@@ -57,6 +57,24 @@
         </receiver>
         <uses-library android:name="com.google.android.wearable" android:required="false"/>
         <meta-data android:name="com.google.android.wearable.standalone" android:value="true"/>
+        <service android:name=".widget.AppComplicationService" android:exported="true" android:label="And JS · 应用" android:icon="@drawable/complication_app" android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter><action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST"/></intent-filter>
+            <meta-data android:name="android.support.wearable.complications.SUPPORTED_TYPES" android:value="ICON,SMALL_IMAGE"/>
+            <meta-data android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS" android:value="0"/>
+        </service>
+        <service android:name=".widget.ScriptComplicationService" android:exported="true" android:label="And JS · 快捷方式" android:icon="@drawable/complication_app" android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter><action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST"/></intent-filter>
+            <meta-data android:name="android.support.wearable.complications.SUPPORTED_TYPES" android:value="ICON,SMALL_IMAGE"/>
+            <meta-data android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS" android:value="0"/>
+            <meta-data android:name="android.support.wearable.complications.PROVIDER_CONFIG_ACTION" android:value="io.todu.andjs.CONFIGURE_COMPLICATION"/>
+        </service>
+        <activity android:name=".widget.ComplicationConfigActivity" android:exported="true" android:label="选择快捷方式">
+            <intent-filter>
+                <action android:name="io.todu.andjs.CONFIGURE_COMPLICATION"/>
+                <category android:name="android.support.wearable.complications.category.PROVIDER_CONFIG"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+        </activity>
         <service android:name=".wear.WatchSyncService" android:exported="true">
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.DATA_CHANGED"/>
