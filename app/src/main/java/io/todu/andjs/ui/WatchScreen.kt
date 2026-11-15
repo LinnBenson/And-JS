@@ -172,7 +172,7 @@ private val watchCard=Color(0xFF20242B)
     }
 }
 @Composable private fun WatchTextCard(text:String,color:Color=Color.White) {
-    Surface(shape=RoundedCornerShape(16.dp),color=watchCard,modifier=Modifier.fillMaxWidth()) {Text(text,color=color,fontSize=13.sp,modifier=Modifier.padding(12.dp))}
+    Surface(shape=RoundedCornerShape(16.dp),color=watchCard,modifier=Modifier.fillMaxWidth().clickable(onClickLabel="复制文本",onClick=copyTextAction(text,"日志与结果"))) {Text(text,color=color,fontSize=13.sp,modifier=Modifier.padding(12.dp))}
 }
 @Composable private fun WatchInteraction(request:ScriptInteraction,embedded:Boolean=false) {
     key(request) {

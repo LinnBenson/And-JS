@@ -129,6 +129,8 @@ options.start/end 为 Unix 毫秒，默认今天零点到现在。历史读取�
 
 系统操作：`andjs.system.toast(text, duration)` 显示系统提示；手表可用 `andjs.system.returnToWatchFace()` 返回表盘。`andjs.system.openRecents()` 和 `andjs.system.openNotificationShade()` 需要在权限授权中开启“系统操作”无障碍服务，具体支持依设备而定。该服务不读取屏幕内容、不订阅操作事件；开启后由系统保持绑定，关闭授权即可停用。
 
+手机和手表的文字日志、结果及错误信息可点击复制到本机剪贴板；每次复制所点击日志条目的完整文字或完整结果。图片日志仍点击预览。
+
 脚本图标提供 205 个矢量图标，可按分类浏览，或搜索中文名称、英文标识及分类名称。
 
 `andjs.system.openApp("com.android.settings")` 按包名打开本机应用，成功发起启动返回 `true`；未安装、已停用、没有启动入口或系统拒绝时抛错。手机和手表分别打开本机应用，手机手表预览打开手机应用。受系统后台启动限制，建议在脚本最后调用。

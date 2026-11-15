@@ -84,7 +84,11 @@ import androidx.activity.compose.BackHandler
             text={OutlinedTextField(noteText,{if(it.length<=io.todu.andjs.wear.WatchSnapshot.MAX_NOTE_LENGTH) noteText=it},
                 enabled=!savingNote,modifier=Modifier.fillMaxWidth().heightIn(min=160.dp,max=280.dp),
                 placeholder={Text("输入内容")},supportingText={Text("${noteText.length}/4000")})},
-            confirmButton={TextButton(enabled=!savingNote,onClick={savingNote=true;model.saveWatchNote(index,noteText) {saved->savingNote=false;if(saved) noteIndex=null}}) {Text("保存")}},
-            dismissButton={TextButton(enabled=!savingNote,onClick={noteIndex=null}) {Text("取消")}})
+            confirmButton={Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                TextButton(enabled=!savingNote && noteText.isNotEmpty(),onClick={noteText=""}) {Text("清空")}
+                Spacer(Modifier.weight(1f))
+                TextButton(enabled=!savingNote,onClick={noteIndex=null}) {Text("取消")}
+                TextButton(enabled=!savingNote,onClick={savingNote=true;model.saveWatchNote(index,noteText) {saved->savingNote=false;if(saved) noteIndex=null}}) {Text("保存")}
+            }})
     }
 }
