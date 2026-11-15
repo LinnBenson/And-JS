@@ -28,7 +28,6 @@ class OverlayRunService:Service(),LifecycleOwner,SavedStateRegistryOwner,ViewMod
     override val viewModelStore=ViewModelStore()
     private val scope=CoroutineScope(SupervisorJob()+Dispatchers.Main.immediate)
     private var view:ComposeView?=null
-    private var windowView:android.widget.FrameLayout?=null
     private lateinit var model:HomeViewModel
     private val handler=Handler(Looper.getMainLooper())
     private val idleClose=Runnable {stopSelf()}
@@ -76,20 +75,14 @@ class OverlayRunService:Service(),LifecycleOwner,SavedStateRegistryOwner,ViewMod
             val params=WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT,WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,PixelFormat.TRANSLUCENT)
             params.softInputMode=WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-            // Dispatch before focused Compose children; an OnKeyListener on ComposeView alone
-            // misses Back when another child owns focus (notably the full-screen image viewer).
-            val window=object:android.widget.FrameLayout(compose.context) {
-                override fun dispatchKeyEvent(event:KeyEvent):Boolean {
-                    if(event.keyCode==KeyEvent.KEYCODE_BACK) {
-                        if(event.action==KeyEvent.ACTION_UP && !event.isCanceled) onBackPressedDispatcher.onBackPressed()
-                        return true
-                    }
-                    return super.dispatchKeyEvent(event)
-                }
+            compose.setOnKeyListener {_,code,event->
+                if(code==KeyEvent.KEYCODE_BACK && event.action==KeyEvent.ACTION_UP) {
+                    onBackPressedDispatcher.onBackPressed()
+                    true
+                } else false
             }
-            window.addView(compose,android.widget.FrameLayout.LayoutParams(-1,-1))
-            getSystemService(WindowManager::class.java).addView(window,params)
-            windowView=window;view=compose
+            getSystemService(WindowManager::class.java).addView(compose,params)
+            view=compose
             registry.handleLifecycleEvent(Lifecycle.Event.ON_START)
             registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
             scope.launch {
@@ -117,9 +110,8 @@ class OverlayRunService:Service(),LifecycleOwner,SavedStateRegistryOwner,ViewMod
         handler.removeCallbacksAndMessages(null)
         model.background();scope.cancel()
         unregisterReceiver(screenOff)
-        view?.disposeComposition()
-        windowView?.let {getSystemService(WindowManager::class.java).removeView(it)}
-        view=null;windowView=null
+        view?.let {it.disposeComposition();getSystemService(WindowManager::class.java).removeView(it)}
+        view=null
         registry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         viewModelStore.clear()
         stopForeground(STOP_FOREGROUND_REMOVE)

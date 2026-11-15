@@ -47,7 +47,7 @@ import androidx.compose.ui.unit.dp
                     scaleX=scale;scaleY=scale;translationX=offset.x;translationY=offset.y
                 })
             }
-            IconButton(onClick=onClose,modifier=Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(8.dp).size(48.dp)
+            if(!watch) IconButton(onClick=onClose,modifier=Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(8.dp).size(48.dp)
                 .background(Color.Black.copy(alpha=.55f),androidx.compose.foundation.shape.CircleShape)) {
                 Glyph("x",Color.White,Modifier.size(24.dp),"关闭图片预览")
             }
