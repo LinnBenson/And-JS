@@ -11,7 +11,23 @@ groups={
 '网络':'globe:网络,link:链接,wifi:无线网络,send:发送,mail:邮件,message-circle:消息,rss:订阅,cloud-download:云下载,cloud-upload:云上传,server:服务器,database:数据库,radio:广播',
 '设备':'smartphone:手机,watch:手表,laptop:电脑,monitor:显示器,bluetooth:蓝牙,battery:电池,volume-2:音量,headphones:耳机,keyboard:键盘,mouse:鼠标,printer:打印机,lightbulb:灯光,power:电源,lock:锁定,key-round:钥匙,shield:保护,map-pin:位置,navigation:导航,compass:指南针,car:汽车,train-front:火车,plane:飞机,rocket:火箭,gamepad-2:游戏'
 }
-entries=[(name,label,group) for group,items in groups.items() for item in items.split(',') for name,label in [item.split(':')]]
+groups.update({
+'应用':'app-window:应用窗口,layout-grid:应用列表,contact:联系人,phone:电话,phone-call:通话,messages-square:聊天,message-square-text:短信,video:视频,circle-play:播放器,tv:电视,newspaper:新闻,book-open:阅读,library:书库,podcast:播客,clapperboard:电影,film:胶片,cassette-tape:磁带,disc-3:唱片,audio-lines:音频波形,radio-tower:电台',
+'出行':'bus:公交车,tram-front:有轨电车,bike:自行车,footprints:步行,ship:轮船,sailboat:帆船,truck:货车,ambulance:救护车,route:路线,map:地图,signpost:路标,tickets:车票,luggage:行李,backpack:背包,fuel:加油,circle-parking:停车,traffic-cone:交通锥,mountain:山峰,tent:露营',
+'健康':'activity:活动,heart-pulse:心率,stethoscope:听诊器,pill:药片,syringe:注射,thermometer:体温,dumbbell:健身,weight:体重,apple:苹果,carrot:胡萝卜,salad:沙拉,brain:大脑,eye:眼睛,ear:耳朵,hand:手掌,accessibility:无障碍,smile:笑脸,person-standing:站立',
+'办公':'briefcase-business:工作,building-2:办公楼,graduation-cap:学习,school:学校,presentation:演示,chart-column:柱状图,chart-line:折线图,chart-pie:饼图,table:表格,sheet:工作表,clipboard-check:检查清单,calendar-check:日程完成,calendar-days:日期,notebook:笔记本,sticky-note:便签,stamp:印章,paperclip:附件,folder-open:打开文件夹',
+'财务':'wallet:钱包,credit-card:银行卡,banknote:现金,coins:硬币,receipt:收据,piggy-bank:存钱罐,landmark:银行,hand-coins:付款,badge-dollar-sign:金额,trending-up:上涨,trending-down:下跌',
+'智能家居':'fan:风扇,air-vent:空调,heater:取暖器,refrigerator:冰箱,washing-machine:洗衣机,door-open:开门,door-closed:关门,lamp:台灯,sofa:沙发,bath:浴缸,shower-head:淋浴,plug:插头,plug-zap:充电,cctv:监控,router:路由器,usb:USB,nfc:NFC,fingerprint:指纹',
+})
+# Keep existing identifiers and categories stable when expanding the catalog.
+seen=set()
+entries=[]
+for group,items in groups.items():
+    for item in items.split(','):
+        name,label=item.split(':')
+        if name not in seen:
+            entries.append((name,label,group))
+            seen.add(name)
 def get(path):
     with urllib.request.urlopen(base+path,timeout=25) as response:return response.read()
 def number(e,k,default='0'):return float(e.get(k,default))
@@ -43,7 +59,7 @@ with urllib.request.urlopen('https://raw.githubusercontent.com/feathericons/feat
     (license_dir/'FEATHER-LICENSE.txt').write_bytes(response.read())
 (license_dir/'LUCIDE.md').write_text('# Lucide\n\nSource: https://github.com/lucide-icons/lucide/tree/0.468.0\n\nSelected icons converted to Android VectorDrawable with a 1.7 viewport-unit stroke. ISC license, with Feather portions under MIT; original notices retained in LUCIDE-LICENSE.txt.\n')
 lines=['package io.todu.andjs.ui','import io.todu.andjs.R','data class AppIcon(val id:String,val label:String,val category:String,val resource:Int)','object AppIcons {','    val all=listOf(']
-lines += [f'        AppIcon("{n}","{l}","{g}",R.drawable.ic_{n.replace("-","_")}), ' for n,l,g in entries]
+lines += [f'        AppIcon("{n}","{l}","{g}",R.drawable.ic_{n.replace("-","_")}),' for n,l,g in entries]
 lines+=['    )','    private val aliases=mapOf("note" to "notebook-pen","text" to "type","swap" to "arrow-left-right","global" to "globe","bolt" to "zap")','    fun resource(id:String):Int?=all.find {it.id==(aliases[id] ?: id)}?.resource','}']
 (root/'app/src/main/java/io/todu/andjs/ui/AppIcons.kt').write_text('\n'.join(lines)+'\n')
 print('Imported',len(entries),'Lucide icons')

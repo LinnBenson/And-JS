@@ -37,6 +37,13 @@ object ScriptExtras {
             else->error("未知剪贴板方法")
         }
     }
+    fun openApp(context:Context,packageName:String):Boolean {
+        require(packageName.length in 1..255 && packageName.matches(Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)*"))) {"请提供有效的应用包名"}
+        val intent=context.packageManager.getLaunchIntentForPackage(packageName)
+            ?: error("应用未安装、已停用或没有可打开的入口：$packageName")
+        launch(context,intent)
+        return true
+    }
     fun openUrl(context:Context,url:String):Boolean {
         require(url.isNotBlank() && url.length<=8192) {"链接不能为空或过长"}
         val uri=Uri.parse(url)

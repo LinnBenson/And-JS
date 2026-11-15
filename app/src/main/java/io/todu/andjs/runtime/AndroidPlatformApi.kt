@@ -77,6 +77,7 @@ class AndroidPlatformApi(private val context:Context):PlatformApi {
             }
             "system"->when(method) {
                 "openUrl"->ScriptExtras.openUrl(context,string(0))
+                "openApp"->ScriptExtras.openApp(context,string(0))
                 "share"->ScriptExtras.share(context,string(0)) {path->ScriptFiles(File(context.filesDir,"user"),Environment.getExternalStorageDirectory(),lowMemory=watch) {permissions()["sharedFiles"]==true}.resolve(path)}
                 "openRecents"->SystemActionsService.perform(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_RECENTS)
                 "openNotificationShade"->SystemActionsService.perform(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS)

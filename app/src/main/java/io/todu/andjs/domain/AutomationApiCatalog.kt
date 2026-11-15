@@ -2,6 +2,7 @@ package io.todu.andjs.domain
 
 object AutomationApiCatalog {
     val methods=listOf(
+        ApiMethod("system.openApp",ApiCategory.DEVICE,"andjs.system","andjs.system.openApp(packageName)","按包名打开本机应用。",listOf(ApiArgument("packageName","string","目标应用的完整包名，例如 com.android.settings。不是应用名称。")),"boolean。成功发起启动返回 true，不代表目标应用已完成加载。应用未安装、已停用、没有启动入口或系统拒绝时抛错。手机和手表均只打开本机应用；手机手表预览打开的是手机应用。受系统后台启动限制，建议在脚本最后调用；离开 And JS 后按后台规则停止脚本。","andjs.system.openApp(\"com.android.settings\");","可用 · 受系统限制"),
         ApiMethod("notes.get",ApiCategory.STORAGE,"andjs.notes","andjs.notes.get(number)","读取便签内容。",listOf(ApiArgument("number","number","便签编号，1–4 的整数。")),"string。空便签返回空字符串。读取本机便签，预览与手机隔离。","exit(andjs.notes.get(1));","可用"),
         ApiMethod("notes.set",ApiCategory.STORAGE,"andjs.notes","andjs.notes.set(number, text)","修改便签内容。",listOf(ApiArgument("number","number","便签编号，1–4 的整数。"),ApiArgument("text","string","最多 4000 字符，空字符串清空便签。")),"boolean。保存成功返回 true，参数错误或保存失败时抛错。手机修改后需手动同步到手表；手表修改仅保存在本机，下次手机同步会覆盖。预览修改与手机隔离，刷新预览会重新加载手机便签。","andjs.notes.set(1, \"今天的安排\");","可用"),
         ApiMethod("ui.close",ApiCategory.UI,"andjs.ui","andjs.ui.close()","关闭当前脚本运行窗口。",emptyList(),"不返回。立即停止本次执行并关闭运行窗口，后续代码不再执行；音频、网络请求等资源随运行释放。子脚本调用时关闭整个调用链的运行窗口。手表返回脚本列表；手机桌面悬浮窗直接关闭。","andjs.ui.close();","可用"),

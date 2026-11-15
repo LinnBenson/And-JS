@@ -76,7 +76,7 @@ fun scriptColorPair(id:String):Pair<Long,Long> = when(id) {
             Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 (listOf("全部")+AppIcons.all.map {it.category}.distinct()).forEach {label->FilterChip(selected=group==label,onClick={group=label},label={Text(label,fontSize=12.sp)})}
             }
-            val icons=AppIcons.all.filter {(group=="全部" || it.category==group) && (it.id+it.label).contains(query,true)}
+            val icons=AppIcons.all.filter {(group=="全部" || it.category==group) && (it.id+it.label+it.category).contains(query.trim(),true)}
             if(icons.isEmpty()) Text("没有匹配的图标",fontSize=13.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             icons.chunked(6).forEach {row-> Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
                 row.forEach {entry-> val id=entry.id;val label=entry.label
