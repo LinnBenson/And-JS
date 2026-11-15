@@ -65,6 +65,7 @@ import java.io.File
             val platform=object:PlatformApi {
                 private val host=AndroidPlatformApi(context)
                 override fun call(namespace:String,method:String,args:org.json.JSONArray):Any? = when(namespace) {
+                    "notes"->io.todu.andjs.runtime.ScriptNotes({store.state.value.notes},store::writeNote).call(method,args)
                     "cache"->ScriptCache(File(context.filesDir,"watch-preview/script-cache")).call(method,args)
                     "image"->LogImages.prepare(args.getString(0),true)
                     "files"->ScriptFiles(root,root,lowMemory=true) {false}.call(method,args)

@@ -42,6 +42,11 @@ class WatchStore(directory:File) {
         val snapshot=WatchSnapshot.decode(text)
         save(snapshot,from,version,digest);return true
     }
+    @Synchronized fun writeNote(index:Int,text:String) {
+        require(index in 0..3 && text.length<=WatchSnapshot.MAX_NOTE_LENGTH)
+        val notes=state.value.notes.toMutableList().apply {set(index,text)}
+        save(state.value.copy(notes=notes),origin,sequence,hash)
+    }
     @Synchronized fun runData(id:String):Triple<ScriptDocument,List<ScriptParameter>,Long>? {
         val snapshot=state.value
         return snapshot.scripts.find {it.item.id==id}?.let {Triple(it,snapshot.globals,sequence)}

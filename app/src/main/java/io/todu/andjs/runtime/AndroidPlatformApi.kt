@@ -47,6 +47,12 @@ class AndroidPlatformApi(private val context:Context):PlatformApi {
         }
         fun number(index:Int):Int {val v=args.get(index);require(v is Number && v.toDouble().isFinite() && v.toDouble()%1==0.0 && v.toDouble() in Int.MIN_VALUE.toDouble()..Int.MAX_VALUE.toDouble()) {"参数必须为整数"};return v.toInt()}
         return when(namespace) {
+            "notes"->{
+                val app=context.applicationContext as io.todu.andjs.AndJsApplication
+                ScriptNotes({if(watch) app.watchStore.state.value.notes else app.watchSync.notes()}, {index,text->
+                    if(watch) app.watchStore.writeNote(index,text) else app.watchSync.saveNoteNow(index,text)
+                }).call(method,args)
+            }
             "cache"->ScriptCache(File(context.filesDir,"script-cache")).call(method,args)
             "clipboard"->ScriptExtras.clipboard(context,method,args)
             "util"->if(method=="qr") ScriptExtras.qr(string(0)) else error("未知方法")

@@ -68,7 +68,7 @@ class HomeViewModel(private val repository: ScriptRepository, private val runner
         }
     }
     init {
-        viewModelScope.launch {watchSync.revision.collect {refreshWatch()}}
+        viewModelScope.launch {watchSync.revision.collect {watchNotes.value=watchSync.notes();refreshWatch()}}
         viewModelScope.launch {try {watchSync.recover()} catch(_:Exception) {}}
     }
     val categories=MutableStateFlow<List<ScriptCategory>>(emptyList())

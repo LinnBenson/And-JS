@@ -19,6 +19,9 @@ class WatchSync(private val context:Context) {
     val revision=MutableStateFlow(0L)
     fun notes():List<String> = List(4) {prefs.getString("note-$it","") ?: ""}
     suspend fun saveNote(index:Int,text:String)=withContext(Dispatchers.IO) {
+        saveNoteNow(index,text)
+    }
+    @Synchronized fun saveNoteNow(index:Int,text:String) {
         require(index in 0..3 && text.length<=WatchSnapshot.MAX_NOTE_LENGTH)
         check(prefs.edit().putString("note-$index",text).commit()) {"便签保存失败"}
         revision.value++

@@ -2,6 +2,8 @@ package io.todu.andjs.domain
 
 object AutomationApiCatalog {
     val methods=listOf(
+        ApiMethod("notes.get",ApiCategory.STORAGE,"andjs.notes","andjs.notes.get(number)","读取便签内容。",listOf(ApiArgument("number","number","便签编号，1–4 的整数。")),"string。空便签返回空字符串。读取本机便签，预览与手机隔离。","exit(andjs.notes.get(1));","可用"),
+        ApiMethod("notes.set",ApiCategory.STORAGE,"andjs.notes","andjs.notes.set(number, text)","修改便签内容。",listOf(ApiArgument("number","number","便签编号，1–4 的整数。"),ApiArgument("text","string","最多 4000 字符，空字符串清空便签。")),"boolean。保存成功返回 true，参数错误或保存失败时抛错。手机修改后需手动同步到手表；手表修改仅保存在本机，下次手机同步会覆盖。预览修改与手机隔离，刷新预览会重新加载手机便签。","andjs.notes.set(1, \"今天的安排\");","可用"),
         ApiMethod("ui.close",ApiCategory.UI,"andjs.ui","andjs.ui.close()","关闭当前脚本运行窗口。",emptyList(),"不返回。立即停止本次执行并关闭运行窗口，后续代码不再执行；音频、网络请求等资源随运行释放。子脚本调用时关闭整个调用链的运行窗口。手表返回脚本列表；手机桌面悬浮窗直接关闭。","andjs.ui.close();","可用"),
         ApiMethod("util.qr",ApiCategory.UTILITIES,"andjs.util","andjs.util.qr(text)","生成二维码图片。",listOf(ApiArgument("text","string","非空文本，UTF-8 编码最多 2000 字节；支持中文和链接。")),"string。PNG Data URL（data:image/png;base64,...），约 320×320 像素，含白色静区。可直接传给 andjs.log.img；不产生临时文件。","const qr = andjs.util.qr(\"https://example.com\");\nandjs.log.img(qr, \"100%\");\n// 保存 PNG\nandjs.files.write(\"app:/qr.png\", qr.split(\",\")[1], \"base64\");","可用"),
         ApiMethod("system.openUrl",ApiCategory.DEVICE,"andjs.system","andjs.system.openUrl(url)","打开网页、地图或应用链接。",listOf(ApiArgument("url","string","带协议的链接，最多 8192 字符；例如 https://example.com、geo:31.23,121.47。支持应用自定义协议，不支持 file/content/javascript/intent 协议。")),"boolean。成功发起打开操作返回 true；没有对应应用或系统拒绝时抛错。不会等待目标应用关闭。手机和手表均需本机安装能处理链接的应用；离开 And JS 后按后台规则停止当前脚本，建议放在最后执行。","andjs.system.openUrl(\"geo:31.23,121.47?q=31.23,121.47\");","可用 · 取决于本机应用"),
