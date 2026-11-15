@@ -39,7 +39,7 @@ class OverlayRunService:Service(),LifecycleOwner,SavedStateRegistryOwner,ViewMod
         registry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
         val app=application as AndJsApplication
         model=ViewModelProvider(this,object:ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST") override fun <T:ViewModel> create(type:Class<T>):T = HomeViewModel(app.repository,app.runner,app.globals,app.categories,app.watchSync) as T
+            @Suppress("UNCHECKED_CAST") override fun <T:ViewModel> create(type:Class<T>):T = HomeViewModel(app.repository,app.runner,app.globals,app.categories,app.watchSync,onRunStarted={view?.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)}) as T
         })[HomeViewModel::class.java]
         registerReceiver(screenOff,IntentFilter(Intent.ACTION_SCREEN_OFF))
     }

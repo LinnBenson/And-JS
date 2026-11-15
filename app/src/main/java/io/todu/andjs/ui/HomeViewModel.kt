@@ -8,7 +8,7 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 data class HomeState(val items: List<Script> = emptyList(), val loading: Boolean = true, val error: String? = null)
-class HomeViewModel(private val repository: ScriptRepository, private val runner: ScriptRunner, private val globalRepository: io.todu.andjs.data.GlobalRepository, private val categoryRepository: io.todu.andjs.data.CategoryRepository, private val watchSync:io.todu.andjs.wear.WatchSync) : ViewModel() {
+class HomeViewModel(private val repository: ScriptRepository, private val runner: ScriptRunner, private val globalRepository: io.todu.andjs.data.GlobalRepository, private val categoryRepository: io.todu.andjs.data.CategoryRepository, private val watchSync:io.todu.andjs.wear.WatchSync,private val onRunStarted:()->Unit={}) : ViewModel() {
     private val mutable = MutableStateFlow(HomeState())
     val state = mutable.asStateFlow()
     var editor = MutableStateFlow<ScriptDocument?>(null); private set
@@ -153,6 +153,7 @@ class HomeViewModel(private val repository: ScriptRepository, private val runner
                 refreshWatch()
             }
         });runControl=control
+        runCatching {onRunStarted()}
         execution.value=Execution(item.name,icon=item.icon,color=item.color)
         viewModelScope.launch {
             val result=try {runner.run(draftSource ?: repository.read(item.id),item.parameters,globalRepository.load(),control) {logs->execution.update {it?.copy(logs=logs)}}}

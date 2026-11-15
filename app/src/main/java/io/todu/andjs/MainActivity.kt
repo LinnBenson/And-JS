@@ -83,7 +83,7 @@ class MainActivity : ComponentActivity() {
                 WatchScreen(watch) {moveTaskToBack(true)}
             } else {
             val model: HomeViewModel = viewModel(factory = object: ViewModelProvider.Factory {
-                @Suppress("UNCHECKED_CAST") override fun <T: ViewModel> create(modelClass: Class<T>): T = HomeViewModel(app.repository, app.runner, app.globals, app.categories, app.watchSync) as T
+                @Suppress("UNCHECKED_CAST") override fun <T: ViewModel> create(modelClass: Class<T>): T = HomeViewModel(app.repository, app.runner, app.globals, app.categories, app.watchSync, onRunStarted={window.decorView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)}) as T
             })
             androidx.compose.runtime.LaunchedEffect(widgetRequest.value) {
                 val id=widgetRequest.value
