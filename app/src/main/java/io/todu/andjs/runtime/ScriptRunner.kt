@@ -45,6 +45,7 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
         val heap=Runtime.getRuntime()
         val baseline=heap.totalMemory()-heap.freeMemory()
         val logs=mutableListOf<LogEntry>()
+        val logIds=mutableMapOf<String,Int>()
         var output=""
         var imageLogChars=0
         var waitingNanos=0L
@@ -186,17 +187,39 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                 }
                 values("value",initialParameters);values("global",globalValues)
                 val log=objectValue(api,"log")
-                listOf("info","warn","error").forEach {level->function(log,level) {args->
-                    val message=args.joinToString(" ") {display(it)}
-                    if(logs.size<maxLogs+1) {
-                        if(logs.size<maxLogs) logs.add(LogEntry(level,message.take(2_000)))
-                        else logs.add(LogEntry("warn","日志已达到 $maxLogs 条上限"))
-                        onLogs(logs.toList())
+                fun logId(value:Any?):String? {
+                    if(value==null || value is Undefined) return null
+                    require(value is CharSequence || value is Number) {"日志 id 须为字符串或数字"}
+                    if(value is Number) require(value.toDouble().isFinite()) {"日志 id 须为有限数字"}
+                    return Context.toString(value).also {require(it.isNotEmpty() && it.length<=200) {"日志 id 长度须为 1–200 字符"}}
+                }
+                fun logSlot(id:String?):Int?=id?.let {logIds[it]}
+                fun canLog(index:Int?):Boolean {
+                    if(index!=null || logs.size<maxLogs) return true
+                    if(logs.size==maxLogs) {logs.add(LogEntry("warn","日志已达到 $maxLogs 条上限"));onLogs(logs.toList())}
+                    return false
+                }
+                fun writeLog(entry:LogEntry,id:String?) {
+                    val index=logSlot(id)
+                    if(!canLog(index)) return
+                    val old=index?.let {logs[it]}
+                    imageLogChars+=(if(entry.level=="img") entry.text.length else 0)-(if(old?.level=="img") old.text.length else 0)
+                    if(index!=null) logs[index]=entry else {
+                        if(id!=null) logIds[id]=logs.size
+                        logs.add(entry)
                     }
+                    onLogs(logs.toList())
+                }
+                listOf("info","warn","error").forEach {level->function(log,level) {args->
+                    require(args.size<=2) {"请使用 (value, id)，多个值请先组合为字符串或数组"}
+                    val id=logId(args.getOrNull(1))
+                    writeLog(LogEntry(level,display(if(args.isEmpty()) Undefined.instance else args[0]).take(2_000)),id)
                     Undefined.instance
                 }}
-                val info=ScriptableObject.getProperty(log,"info")
-                ScriptableObject.putProperty(objectValue(scope,"console"),"log",info)
+                function(objectValue(scope,"console"),"log") {args->
+                    writeLog(LogEntry("info",args.joinToString(" ") {display(it)}.take(2_000)),null)
+                    Undefined.instance
+                }
                 function(scope,"exit") {args->
                     returned=args.getOrElse(0) {Undefined.instance}
                     if(depth==0 || callbackDepth>0) output=when {
@@ -645,12 +668,13 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                 installHttp(objectValue(api,"http"),defaultHttpClient,true)
                 function(log,"img") {args->
                     val host=platform ?: error("当前环境不支持图片日志")
-                    if(logs.size>=maxLogs) {
-                        if(logs.size==maxLogs) {logs.add(LogEntry("warn","日志已达到 $maxLogs 条上限"));onLogs(logs.toList())}
-                        return@function Undefined.instance
-                    }
-                    require(logs.count {it.level=="img"}<(if(lowMemory) 4 else 12)) {"图片日志数量已达到上限"}
-                    val requestedWidth=args.getOrNull(1)
+                    require(args.size<=3) {"请使用 img(source, id, maxWidth)"}
+                    val id=logId(args.getOrNull(1))
+                    val index=logSlot(id)
+                    if(!canLog(index)) return@function Undefined.instance
+                    val old=index?.let {logs[it]}
+                    require(logs.count {it.level=="img"}-(if(old?.level=="img") 1 else 0)<(if(lowMemory) 4 else 12)) {"图片日志数量已达到上限"}
+                    val requestedWidth=args.getOrNull(2)
                     val percent=if(requestedWidth is CharSequence) {
                         val text=requestedWidth.toString().trim()
                         val value=if(text.endsWith("%")) text.dropLast(1).toFloatOrNull() else null
@@ -687,10 +711,8 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                     val image=host.call("image","prepare",org.json.JSONArray().put(encoded),control) as Map<*,*>
                     checkRun()
                     val preview=image["base64"] as String
-                    require(imageLogChars+preview.length <= if(lowMemory) 1_400_000 else 5_600_000) {"图片日志总量已达上限"}
-                    imageLogChars+=preview.length
-                    logs.add(LogEntry("img",preview,(image["ratio"] as Number).toFloat(),width,percent))
-                    onLogs(logs.toList())
+                    require(imageLogChars-(if(old?.level=="img") old.text.length else 0)+preview.length <= if(lowMemory) 1_400_000 else 5_600_000) {"图片日志总量已达上限"}
+                    writeLog(LogEntry("img",preview,(image["ratio"] as Number).toFloat(),width,percent),id)
                     Undefined.instance
                 }
                 platform?.let {host->
