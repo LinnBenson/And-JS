@@ -7,16 +7,24 @@ import org.mozilla.javascript.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.security.SecureRandom
 import java.util.UUID
+import okio.ByteString.Companion.toByteString
 
 class RunControl(val persistVariables:((String,List<ScriptParameter>)->Unit)?=null, val loadScript:((String)->io.todu.andjs.domain.ScriptDocument?)?=null, val saveScriptVariables:((String,List<ScriptParameter>)->Unit)?=null, val onInteraction:((ScriptInteraction?)->Unit)?=null) {
+    internal val cacheEpoch=io.todu.andjs.data.AppCache.epoch.value
     val closeRequested = AtomicBoolean(false)
     val stopped = AtomicBoolean(false)
-    private val activeStop=java.util.concurrent.atomic.AtomicReference<(() -> Unit)?>(null)
-    fun stop() { stopped.set(true);activeStop.get()?.invoke() }
+    private val activeStops=java.util.concurrent.ConcurrentHashMap<Any,()->Unit>()
+    fun stop() {
+        stopped.set(true)
+        activeStops.values.forEach {runCatching {it()}}
+    }
     fun registerStop(action:()->Unit):()->Unit {
-        activeStop.set(action)
-        if(stopped.get()) action()
-        return {activeStop.compareAndSet(action,null);Unit}
+        val key=Any()
+        val invoked=AtomicBoolean(false)
+        val once:()->Unit={if(invoked.compareAndSet(false,true)) action()}
+        activeStops[key]=once
+        if(stopped.get()) runCatching {once()}
+        return {activeStops.remove(key);Unit}
     }
 }
 data class LogEntry(val level:String,val text:String,val imageRatio:Float=1f,val imageWidth:Int=240,val imageWidthPercent:Float?=null)
@@ -25,10 +33,11 @@ interface ScriptRunner {
     suspend fun run(source:String, parameters:List<ScriptParameter>, globals:List<ScriptParameter>, control:RunControl, onLogs:(List<LogEntry>)->Unit = {}):RunResult
 }
 private class ScriptExited: Error()
+private class ScriptCallbackExited: Error()
 private class RunAborted(val cancelled:Boolean): Error()
 
 /** Each invocation has an independent safe scope; Java reflection and host objects are not exposed. */
-class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoot:java.io.File=java.io.File(System.getProperty("java.io.tmpdir"),"andjs-network"),private val platform:PlatformApi?=null,private val lowMemory:Boolean=false) : ScriptRunner {
+class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System.getProperty("java.io.tmpdir"),"andjs-network"),private val platform:PlatformApi?=null,private val lowMemory:Boolean=false) : ScriptRunner {
     override suspend fun run(source:String, parameters:List<ScriptParameter>, globals:List<ScriptParameter>, control:RunControl, onLogs:(List<LogEntry>)->Unit):RunResult = withContext(Dispatchers.Default) {
         val started=System.nanoTime()
         val maxLogs=if(lowMemory) 40 else 200
@@ -40,13 +49,15 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
         var imageLogChars=0
         var waitingNanos=0L
         var interactionWaitingNanos=0L
+        var callbackDepth=0
         val httpSessions=mutableListOf<HttpSession>()
+        val socketManager=lazy {ScriptWebSockets(control,lowMemory)}
+        val deviceSession=lazy {platform?.openDeviceSession(control) ?: error("当前环境不支持设备监听")}
+        val bleSession=lazy {platform?.openBle(control) ?: error("当前环境不支持 BLE")}
         var globalValues=globals.toList()
         fun checkRun() {
             if(control.stopped.get()) throw RunAborted(true)
-            if(lowMemory && (System.nanoTime()-started-interactionWaitingNanos)/1_000_000>60_000) throw Context.reportRuntimeError("手表运行已超过 60 秒，已停止")
             if(lowMemory && heap.totalMemory()-heap.freeMemory()-baseline>16L*1024*1024) throw Context.reportRuntimeError("脚本内存占用过高，已停止")
-            if((System.nanoTime()-started-waitingNanos)/1_000_000 >= timeoutMs) throw RunAborted(false)
         }
         val factory=object:ContextFactory() {
             override fun makeContext():Context = super.makeContext().apply {
@@ -58,13 +69,18 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
             }
             override fun observeInstructionCount(cx:Context, count:Int) {checkRun()}
         }
+        val cacheTicket=io.todu.andjs.data.AppCache.enter(control) ?: return@withContext RunResult("",emptyList(),stopped=true)
         try {
             require(source.length<=if(lowMemory) 256_000 else 1_000_000) {"脚本超过当前设备大小限制"}
             factory.call(ContextAction<Unit> {cx ->
                 val session by lazy {HttpSession(networkRoot,control,lowMemory).also {httpSessions.add(it)}}
+                val defaultHttpClient by lazy {HttpClient(session,control,lowMemory)}
                 fun execute(code:String, initialParameters:List<ScriptParameter>, persist:((String,List<ScriptParameter>)->Unit)?, depth:Int):Any? {
                 require(depth<=8) {"脚本调用最多允许 8 层"}
                 require(code.length<=if(lowMemory) 256_000 else 1_000_000) {"脚本超过当前设备大小限制"}
+                val scopeSockets=mutableListOf<ScriptWebSockets.Connection>()
+                val scopeBle=mutableListOf<BleHandle>()
+                try {
                 var returned:Any?=Undefined.instance
                 val scope=cx.initSafeStandardObjects()
                 fun objectValue(parent:Scriptable, key:String):Scriptable {
@@ -183,11 +199,12 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                 ScriptableObject.putProperty(objectValue(scope,"console"),"log",info)
                 function(scope,"exit") {args->
                     returned=args.getOrElse(0) {Undefined.instance}
-                    if(depth==0) output=when {
+                    if(depth==0 || callbackDepth>0) output=when {
                         args.isEmpty() || args[0] is Undefined -> ""
                         args[0] is Boolean -> if(args[0] == true) "执行成功" else "执行失败"
                         else -> display(args[0])
                     }
+                    if(callbackDepth>0) throw ScriptCallbackExited()
                     throw ScriptExited()
                 }
                 function(api,"sleep") {args->
@@ -233,40 +250,399 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                     }
                     js(answer)
                 }}
-                val http=objectValue(api,"http")
-                fun network(args:Array<out Any?>,method:String?=null,download:Boolean=false):Any? {
-                    require(args.firstOrNull() is CharSequence) {"URL 必须为字符串"}
-                    val options=if(args.size<2 || args[1] is Undefined) org.json.JSONObject() else {
-                        require(args[1] is NativeObject) {"options 必须为对象"}
-                        org.json.JSONObject(Context.toString(NativeJSON.stringify(cx,scope,args[1],null,null)))
-                    }
-                    if(method!=null) options.put("method",method)
-                    if(download) options.put("responseType","file")
-                    val start=System.nanoTime()
-                    val response=try {session.request(args[0].toString(),options)}
-                    catch(e:Exception) {
-                        if(control.stopped.get()) throw RunAborted(true)
-                        throw Context.reportRuntimeError("网络请求失败："+(e.message ?: "连接错误"))
-                    } finally {waitingNanos+=System.nanoTime()-start}
-                    checkRun()
-                    val result=NativeJSON.parse(cx,scope,response.toString(),Callable {_,_,_,v->v[1]}) as Scriptable
-                    val responseType=options.optString("responseType","auto")
+                fun httpOptions(value:Any?):org.json.JSONObject {
+                    if(value==null || value is Undefined) return org.json.JSONObject()
+                    require(value is NativeObject) {"options 必须为对象"}
+                    return org.json.JSONObject(Context.toString(NativeJSON.stringify(cx,scope,value,null,null)))
+                }
+                fun jsonValue(value:Any):Any?=NativeJSON.parse(cx,scope,value.toString(),Callable {_,_,_,v->v[1]})
+                fun throwHttp(failure:HttpFailure):Nothing {
+                    val details=jsonValue(failure.details) as Scriptable
+                    val error=cx.newObject(scope,"Error",arrayOf(failure.details.optString("message")))
+                    details.ids.forEach {id->val key=id.toString();ScriptableObject.putProperty(error,key,ScriptableObject.getProperty(details,key))}
+                    throw JavaScriptException(error,"",0)
+                }
+                fun decodeResponse(response:org.json.JSONObject,responseType:String):Scriptable {
+                    val result=jsonValue(response) as Scriptable
                     if(responseType=="json" || responseType=="auto") {
                         val text=response.optString("text").removePrefix("\uFEFF").trim()
-                        val data=if(responseType=="json") {
-                            if(text.isEmpty()) null else NativeJSON.parse(cx,scope,text,Callable {_,_,_,v->v[1]}).also {ScriptableObject.putProperty(result,"isJson",response.optBoolean("ok"))}
-                        } else {
-                            try { NativeJSON.parse(cx,scope,text,Callable {_,_,_,v->v[1]}).also {ScriptableObject.putProperty(result,"isJson",response.optBoolean("ok"))} }
-                            catch(_:RhinoException) {response.optString("text")}
+                        val data=try {
+                            if(responseType=="json" && text.isEmpty()) null else NativeJSON.parse(cx,scope,text,Callable {_,_,_,v->v[1]}).also {
+                                ScriptableObject.putProperty(result,"isJson",response.optBoolean("ok"))
+                            }
+                        } catch(e:RhinoException) {
+                            if(responseType=="json") throw HttpFailure(org.json.JSONObject().put("name","HttpError").put("code","INVALID_RESPONSE")
+                                .put("message","响应不是有效 JSON").put("phase","decode").put("status",response.optInt("status"))
+                                .put("url",response.optString("url")).put("method",response.optString("method","GET")).put("attempts",response.optInt("attempts",1))
+                                .put("elapsedMs",response.optLong("elapsedMs")).put("retryable",false).put("response",response),e)
+                            response.optString("text")
                         }
                         ScriptableObject.putProperty(result,"data",data)
                     }
                     return result
                 }
-                function(http,"request") {network(it)}
-                listOf("get","post","put","patch","delete","head","options").forEach {method->function(http,method) {network(it,method.uppercase())}}
-                function(http,"download") {network(it,"GET",true)}
-                function(http,"clearCookies") {session.clearCookies();Undefined.instance}
+                fun installHttp(target:Scriptable,client:HttpClient,allowCreate:Boolean) {
+                    fun network(args:Array<out Any?>,method:String?=null,download:Boolean=false):Any? {
+                        val address=args.firstOrNull()?.toString().orEmpty()
+                        try {
+                            require(args.firstOrNull() is CharSequence) {"URL 必须为字符串"}
+                            val options=httpOptions(args.getOrNull(1))
+                            if(method!=null) options.put("method",method)
+                            if(download) options.put("responseType","file")
+                            val start=System.nanoTime()
+                            val response=try {client.request(address,options)} finally {waitingNanos+=System.nanoTime()-start}
+                            checkRun()
+                            return decodeResponse(response,client.responseType(options))
+                        } catch(e:Exception) {
+                            if(control.stopped.get()) throw RunAborted(true)
+                            throwHttp(httpFailure(e,address,method ?: "GET"))
+                        }
+                    }
+                    function(target,"request") {network(it)}
+                    listOf("get","post","put","patch","delete","head","options").forEach {method->function(target,method) {network(it,method.uppercase())}}
+                    function(target,"download") {network(it,"GET",true)}
+                    function(target,"clearCookies") {client.clearCookies();Undefined.instance}
+                    function(target,"setCookies") {args->
+                        try {
+                            require(args.size>=2 && args[0] is CharSequence && (args[1] is CharSequence || args[1] is NativeObject)) {"setCookies 需要 URL 和 Cookie 字符串或对象"}
+                            val value=if(args[1] is CharSequence) args[1].toString() else httpOptions(args[1])
+                            client.setCookies(args[0].toString(),value);Undefined.instance
+                        } catch(e:Exception) {throwHttp(httpFailure(e,"","","cookies"))}
+                    }
+                    function(target,"getCookies") {args->
+                        try {require(args.firstOrNull() is CharSequence) {"getCookies 需要 URL"};jsonValue(client.getCookies(args[0].toString()))}
+                        catch(e:Exception) {throwHttp(httpFailure(e,"","","cookies"))}
+                    }
+                    function(target,"batch") {args->
+                        try {
+                            require(args.firstOrNull() is NativeArray) {"batch 需要请求数组"}
+                            val requests=org.json.JSONArray(Context.toString(NativeJSON.stringify(cx,scope,args[0],null,null)))
+                            val options=httpOptions(args.getOrNull(1))
+                            val start=System.nanoTime()
+                            val packets=try {client.batch(requests,options)} finally {waitingNanos+=System.nanoTime()-start}
+                            checkRun()
+                            val results=(0 until packets.length()).map {index->
+                                val packet=packets.getJSONObject(index)
+                                val responseType=packet.optString("_responseType","text")
+                                packet.remove("_responseType")
+                                val result=jsonValue(packet) as Scriptable
+                                packet.optJSONObject("response")?.let {response->
+                                    try {ScriptableObject.putProperty(result,"response",decodeResponse(response,responseType))}
+                                    catch(e:HttpFailure) {ScriptableObject.putProperty(result,"ok",false);ScriptableObject.putProperty(result,"error",jsonValue(e.details))}
+                                }
+                                result
+                            }
+                            cx.newArray(scope,results.toTypedArray<Any>())
+                        } catch(e:Exception) {
+                            if(control.stopped.get()) throw RunAborted(true)
+                            throwHttp(httpFailure(e,"","","batch"))
+                        }
+                    }
+                    if(allowCreate) function(target,"createClient") {args->
+                        try {
+                            val defaults=httpOptions(args.firstOrNull())
+                            require(httpSessions.size<(if(lowMemory) 4 else 8)) {"独立客户端数量已达到设备上限"}
+                            val newSession=HttpSession(networkRoot,control,lowMemory)
+                            try {
+                                val native=HttpClient(newSession,control,lowMemory,defaults)
+                                httpSessions.add(newSession)
+                                cx.newObject(scope).also {installHttp(it,native,false)}
+                            } catch(e:Exception) {newSession.close();throw e}
+                        } catch(e:Exception) {throwHttp(httpFailure(e,"","","client"))}
+                    }
+                }
+                fun throwWebSocket(error:Exception,url:String=""):Nothing {
+                    if(control.stopped.get()) throw RunAborted(true)
+                    val failure=error as? WebSocketFailure ?: if(error is InterruptedException) wsFailure("CANCELLED","等待已取消",url)
+                        else wsFailure("INVALID_OPTIONS",error.message ?: "WebSocket 参数无效",url)
+                    val details=jsonValue(failure.details) as Scriptable
+                    val value=cx.newObject(scope,"Error",arrayOf(failure.details.optString("message")))
+                    details.ids.forEach {id->val name=id.toString();ScriptableObject.putProperty(value,name,ScriptableObject.getProperty(details,name))}
+                    throw JavaScriptException(value,"",0)
+                }
+                val wsApi=objectValue(api,"ws")
+                function(wsApi,"connect") {args->
+                    val address=args.firstOrNull()?.toString().orEmpty()
+                    try {
+                        require(args.firstOrNull() is CharSequence) {"URL 必须为字符串"}
+                        val options=httpOptions(args.getOrNull(1))
+                        val start=System.nanoTime()
+                        val connection=try {socketManager.value.connect(address,options)} finally {waitingNanos+=System.nanoTime()-start}
+                        scopeSockets.add(connection)
+                        checkRun()
+                        cx.newObject(scope).also {socket->
+                            var messageHandler:org.mozilla.javascript.Function?=null
+                            var errorHandler:org.mozilla.javascript.Function?=null
+                            var closeHandler:org.mozilla.javascript.Function?=null
+                            var listening=false
+                            var closeDelivered=false
+                            fun decodeMessage(message:org.json.JSONObject):Scriptable {
+                                val result=jsonValue(message) as Scriptable
+                                if(message.getString("type")=="text") {
+                                    var isJson=false
+                                    val data=try {NativeJSON.parse(cx,scope,message.getString("text"),Callable {_,_,_,v->v[1]}).also {isJson=true}}
+                                        catch(_:RhinoException) {message.getString("text")}
+                                    ScriptableObject.putProperty(result,"data",data)
+                                    ScriptableObject.putProperty(result,"isJson",isJson)
+                                }
+                                return result
+                            }
+                            fun invokeCallback(handler:org.mozilla.javascript.Function?,event:Any?) {
+                                if(handler==null) return
+                                checkRun();callbackDepth++
+                                try {handler.call(cx,scope,socket,arrayOf(event));checkRun()}
+                                finally {callbackDepth--}
+                            }
+                            listOf("onMessage","onError","onClose").forEach {name->function(socket,name) {values->
+                                val handler=values.firstOrNull()
+                                require(handler is org.mozilla.javascript.Function) {"$name 需要函数"}
+                                when(name) {"onMessage"->messageHandler=handler;"onError"->errorHandler=handler;else->closeHandler=handler}
+                                socket
+                            }}
+                            function(socket,"listen") {
+                                require(!listening && callbackDepth==0) {"不能在回调中或重复进入 listen"}
+                                require(messageHandler!=null) {"请先注册 onMessage"}
+                                listening=true
+                                try {
+                                    while(true) {
+                                        checkRun()
+                                        var terminal:WebSocketFailure?=null
+                                        val start=System.nanoTime()
+                                        val message=try {connection.receive(100)} catch(e:WebSocketFailure) {
+                                            if(e.details.optString("code")!="RECEIVE_TIMEOUT") terminal=e
+                                            null
+                                        } finally {waitingNanos+=System.nanoTime()-start}
+                                        if(control.stopped.get()) throw RunAborted(true)
+                                        if(terminal!=null) {
+                                            if(!closeDelivered) {
+                                                closeDelivered=true
+                                                val error=terminal!!
+                                                if(error.details.optString("code")!="CLOSED") {
+                                                    if(errorHandler==null) throwWebSocket(error,address)
+                                                    invokeCallback(errorHandler,jsonValue(error.details))
+                                                }
+                                                invokeCallback(closeHandler,jsonValue(connection.closeInfo()))
+                                            }
+                                            break
+                                        }
+                                        if(message!=null) invokeCallback(messageHandler,decodeMessage(message))
+                                    }
+                                    jsonValue(connection.closeInfo())
+                                } finally {listening=false}
+                            }
+                            function(socket,"send") {values->
+                                try {
+                                    require(values.isNotEmpty() && values[0] !is Undefined && values[0] !is org.mozilla.javascript.Function) {"send 需要文字、JSON 值或 Base64 数据"}
+                                    val options=httpOptions(values.getOrNull(1))
+                                    val type=options.optString("type",if(values[0] is CharSequence) "text" else "json")
+                                    when(type) {
+                                        "text"->{require(values[0] is CharSequence) {"text 模式需要字符串"};connection.send(values[0].toString())}
+                                        "json"->{
+                                            val encoded=Context.toString(NativeJSON.stringify(cx,scope,values[0],null,null))
+                                            require(encoded!="undefined") {"消息无法编码为 JSON"}
+                                            connection.send(encoded)
+                                        }
+                                        "base64"->{
+                                            require(values[0] is CharSequence) {"base64 模式需要字符串"}
+                                            val encoded=values[0].toString()
+                                            if(encoded.length>((socketManager.value.messageLimit()+2)/3)*4) throw wsFailure("MESSAGE_TOO_LARGE","二进制消息超过大小限制",address)
+                                            connection.send(java.util.Base64.getDecoder().decode(encoded).toByteString())
+                                        }
+                                        else->throw IllegalArgumentException("type 须为 text、json 或 base64")
+                                    }
+                                } catch(e:Exception) {throwWebSocket(e,address)}
+                            }
+                            function(socket,"receive") {values->
+                                try {
+                                    require(!listening) {"listen 期间不能调用 receive"}
+                                    val wait=values.getOrNull(0)?.takeUnless {it is Undefined}?.let {value->
+                                        require(value is Number && value.toDouble().isFinite() && value.toDouble()%1==0.0 && value.toDouble() in 1.0..120000.0) {"receive 超时须为有效的毫秒整数"}
+                                        value.toLong()
+                                    }
+                                    val start=System.nanoTime()
+                                    val message=try {connection.receive(wait)} finally {waitingNanos+=System.nanoTime()-start}
+                                    checkRun()
+                                    decodeMessage(message)
+                                } catch(e:Exception) {throwWebSocket(e,address)}
+                            }
+                            function(socket,"close") {values->
+                                try {
+                                    val code=values.getOrNull(0)?.takeUnless {it is Undefined}?.let {
+                                        require(it is Number && it.toDouble().isFinite() && it.toDouble()%1==0.0 && it.toDouble() in 1000.0..4999.0) {"关闭码无效"};it.toInt()
+                                    } ?: 1000
+                                    val reason=values.getOrNull(1)?.takeUnless {it is Undefined}?.let {require(it is CharSequence) {"关闭原因须为字符串"};it.toString()} ?: ""
+                                    val start=System.nanoTime()
+                                    try {connection.close(code,reason)} finally {waitingNanos+=System.nanoTime()-start}
+                                } catch(e:Exception) {throwWebSocket(e,address)}
+                            }
+                        }
+                    } catch(e:Exception) {if(e is JavaScriptException) throw e;throwWebSocket(e,address)}
+                }
+                fun bleFailure(e:Exception):Nothing {
+                    if(control.stopped.get()) throw RunAborted(true)
+                    if(e is RhinoException) throw e
+                    val details=(e as? BleFailure)?.details ?: org.json.JSONObject().put("name","BleError")
+                        .put("code",if(e is SecurityException) "PERMISSION_DENIED" else "INVALID_OPTIONS").put("message",e.message ?: "BLE 调用失败").put("status",0)
+                    val value=cx.newObject(scope,"Error",arrayOf(details.optString("message")))
+                    details.keys().forEach {name->ScriptableObject.putProperty(value,name,js(details.get(name)))}
+                    throw JavaScriptException(value,"",0)
+                }
+                val ble=objectValue(api,"ble")
+                listOf("connect","scan","advertise").forEach {kind->function(ble,kind) {args->
+                    try {
+                        val options=httpOptions(args.getOrNull(if(kind=="connect") 1 else 0))
+                        val nativeArgs=org.json.JSONArray()
+                        if(kind=="connect") {require(args.firstOrNull() is CharSequence) {"需要蓝牙地址"};nativeArgs.put(args[0].toString())}
+                        nativeArgs.put(options)
+                        val start=System.nanoTime()
+                        val handle=try {bleSession.value.open(kind,nativeArgs)} finally {waitingNanos+=System.nanoTime()-start}
+                        scopeBle.add(handle);checkRun()
+                        cx.newObject(scope).also {obj->
+                            var message:org.mozilla.javascript.Function?=null
+                            var error:org.mozilla.javascript.Function?=null
+                            var closed:org.mozilla.javascript.Function?=null
+                            var listening=false
+                            var delivered=false
+                            fun callback(fn:org.mozilla.javascript.Function?,event:Any?) {
+                                if(fn==null) return
+                                checkRun();callbackDepth++
+                                try {fn.call(cx,scope,obj,arrayOf(event));checkRun()} finally {callbackDepth--}
+                            }
+                            listOf("onMessage","onError","onClose").forEach {name->function(obj,name) {values->
+                                val fn=values.firstOrNull();require(fn is org.mozilla.javascript.Function) {"$name 需要函数"}
+                                when(name) {"onMessage"->message=fn;"onError"->error=fn;else->closed=fn};obj
+                            }}
+                            function(obj,"close") {handle.close();Undefined.instance}
+                            function(obj,"info") {jsonValue(handle.info())}
+                            function(obj,"receive") {values->
+                                try {
+                                    require(!listening) {"listen 期间不能调用 receive"}
+                                    val timeout=values.firstOrNull()?.takeUnless {it is Undefined} ?: 10000
+                                    require(timeout is Number && timeout.toDouble()%1==0.0 && timeout.toDouble() in 1.0..15000.0) {"timeout 须为 1–15000 的毫秒整数"}
+                                    val start=System.nanoTime()
+                                    val event=try {handle.poll(timeout.toLong())} finally {waitingNanos+=System.nanoTime()-start}
+                                    checkRun();event?.let {jsonValue(it)}
+                                } catch(e:Exception) {bleFailure(e)}
+                            }
+                            function(obj,"listen") {
+                                require(!listening && callbackDepth==0) {"不能在回调中或重复进入 listen"}
+                                require(message!=null || kind=="advertise") {"请先注册 onMessage"}
+                                listening=true
+                                try {
+                                    while(true) {
+                                        checkRun()
+                                        var failure:BleFailure?=null
+                                        val start=System.nanoTime()
+                                        val event=try {handle.poll(100)} catch(e:BleFailure) {failure=e;null} finally {waitingNanos+=System.nanoTime()-start}
+                                        checkRun()
+                                        if(failure!=null) {
+                                            if(!delivered) {
+                                                delivered=true
+                                                val e=failure!!
+                                                if(e.details.optString("code")!="CLOSED") {if(error==null) bleFailure(e);callback(error,jsonValue(e.details))}
+                                                callback(closed,jsonValue(handle.info()))
+                                            }
+                                            break
+                                        }
+                                        if(event!=null) callback(message,jsonValue(event))
+                                    }
+                                    jsonValue(handle.info())
+                                } finally {listening=false}
+                            }
+                            if(kind=="connect") listOf("services","read","send","write","subscribe","unsubscribe","mtu").forEach {name->function(obj,name) {values->
+                                try {
+                                    val arguments=org.json.JSONArray(Context.toString(NativeJSON.stringify(cx,scope,cx.newArray(scope,values),null,null)))
+                                    val start=System.nanoTime()
+                                    val result=try {handle.call(name,arguments)} finally {waitingNanos+=System.nanoTime()-start}
+                                    checkRun()
+                                    if(result is org.json.JSONObject || result is org.json.JSONArray) jsonValue(result) else js(result)
+                                } catch(e:Exception) {bleFailure(e)}
+                            }}
+                        }
+                    } catch(e:Exception) {bleFailure(e)}
+                }}
+                fun deviceFailure(e:Exception):Nothing {
+                    if(control.stopped.get()) throw RunAborted(true)
+                    if(e is RhinoException) throw e
+                    val details=(e as? DeviceFailure)?.details ?: org.json.JSONObject().put("name","DeviceError")
+                        .put("code",when(e) {is SecurityException->"PERMISSION_DENIED";is java.io.IOException->"IO_ERROR";is android.hardware.camera2.CameraAccessException->"DEVICE_UNAVAILABLE";is UnsupportedOperationException->"UNSUPPORTED";is IllegalArgumentException,is org.json.JSONException->"INVALID_OPTIONS";else->"DEVICE_ERROR"}).put("message",e.message ?: "设备调用失败").put("status",0)
+                    val value=cx.newObject(scope,"Error",arrayOf(details.optString("message")))
+                    details.keys().forEach {name->ScriptableObject.putProperty(value,name,js(details.get(name)))}
+                    throw JavaScriptException(value,"",0)
+                }
+                listOf("sensors","network","torch","nfc","dnd").forEach {kind->
+                val target=objectValue(api,kind)
+                function(target,"status") {try {jsonValue(deviceSession.value.status(kind))} catch(e:Exception) {deviceFailure(e)}}
+                function(target,if(kind in listOf("torch","dnd")) "open" else "watch") {args->
+                    try {
+                        val options=httpOptions(args.getOrNull(0))
+                        val handle=deviceSession.value.open(kind,options)
+                        scopeBle.add(handle);checkRun()
+                        cx.newObject(scope).also {obj->
+                            var message:org.mozilla.javascript.Function?=null
+                            var error:org.mozilla.javascript.Function?=null
+                            var closed:org.mozilla.javascript.Function?=null
+                            var listening=false
+                            var delivered=false
+                            fun callback(fn:org.mozilla.javascript.Function?,event:Any?) {
+                                if(fn==null) return
+                                checkRun();callbackDepth++
+                                try {fn.call(cx,scope,obj,arrayOf(event));checkRun()} finally {callbackDepth--}
+                            }
+                            listOf("onMessage","onError","onClose").forEach {name->function(obj,name) {values->
+                                val fn=values.firstOrNull();require(fn is org.mozilla.javascript.Function) {"$name 需要函数"}
+                                when(name) {"onMessage"->message=fn;"onError"->error=fn;else->closed=fn};obj
+                            }}
+                            function(obj,"close") {handle.close();Undefined.instance}
+                            function(obj,"info") {jsonValue(handle.info())}
+                            function(obj,"receive") {values->
+                                try {
+                                    require(!listening) {"listen 期间不能调用 receive"}
+                                    val timeout=values.firstOrNull()?.takeUnless {it is Undefined} ?: 10000
+                                    require(timeout is Number && timeout.toDouble()%1==0.0 && timeout.toDouble() in 1.0..15000.0) {"timeout 须为 1–15000 的毫秒整数"}
+                                    val start=System.nanoTime()
+                                    val event=try {handle.poll(timeout.toLong())} finally {waitingNanos+=System.nanoTime()-start}
+                                    checkRun();event?.let {jsonValue(it)}
+                                } catch(e:Exception) {deviceFailure(e)}
+                            }
+                            function(obj,"listen") {
+                                require(!listening && callbackDepth==0) {"不能在回调中或重复进入 listen"}
+                                require(message!=null || kind in listOf("torch","dnd")) {"请先注册 onMessage"}
+                                listening=true
+                                try {
+                                    while(true) {
+                                        checkRun()
+                                        var failure:DeviceFailure?=null
+                                        val start=System.nanoTime()
+                                        val event=try {handle.poll(100)} catch(e:DeviceFailure) {failure=e;null} finally {waitingNanos+=System.nanoTime()-start}
+                                        checkRun()
+                                        if(failure!=null) {
+                                            if(!delivered) {
+                                                delivered=true
+                                                val e=failure!!
+                                                if(e.details.optString("code")!="CLOSED") {if(error==null) deviceFailure(e);callback(error,jsonValue(e.details))}
+                                                callback(closed,jsonValue(handle.info()))
+                                            }
+                                            break
+                                        }
+                                        if(event!=null) callback(message,jsonValue(event))
+                                    }
+                                    jsonValue(handle.info())
+                                } finally {listening=false}
+                            }
+                            (when(kind) {"torch"->listOf("set");"nfc"->listOf("write");else->emptyList()}).forEach {name->function(obj,name) {values->
+                                try {
+                                    val arguments=org.json.JSONArray(Context.toString(NativeJSON.stringify(cx,scope,cx.newArray(scope,values),null,null)))
+                                    val start=System.nanoTime()
+                                    val result=try {handle.call(name,arguments)} finally {waitingNanos+=System.nanoTime()-start}
+                                    checkRun()
+                                    if(result is org.json.JSONObject || result is org.json.JSONArray) jsonValue(result) else js(result)
+                                } catch(e:Exception) {deviceFailure(e)}
+                            }}
+                        }
+                    } catch(e:Exception) {deviceFailure(e)}
+                }}
+                installHttp(objectValue(api,"http"),defaultHttpClient,true)
                 function(log,"img") {args->
                     val host=platform ?: error("当前环境不支持图片日志")
                     if(logs.size>=maxLogs) {
@@ -318,7 +694,7 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                     Undefined.instance
                 }
                 platform?.let {host->
-                    listOf("notes" to listOf("get","set"),"clipboard" to listOf("get","set"),"cache" to listOf("get","set","remove"),"health" to listOf("status","current","summary","read"),"device" to listOf("info","battery","network","memory","storage","screen","power","sensors","vibrator","location","locationStatus","wifi","bluetooth"),"system" to listOf("getBrightness","setBrightness","getVolume","setVolume","openSettings","setAutoBrightness","getScreenTimeout","setScreenTimeout","getRotation","setRotation","vibrate","cancelVibration","notify","cancelNotification","speak","playAudio","toast","closeApp","returnToWatchFace","openRecents","openNotificationShade","openUrl","openApp","share"),"files" to listOf("read","write","append","exists","list","mkdir","delete","copy","move","info"),"permissions" to listOf("status")).forEach {(space,methods)->
+                    listOf("notes" to listOf("get","set"),"clipboard" to listOf("get","set"),"cache" to listOf("get","set","remove"),"health" to listOf("status","current","summary","read"),"device" to listOf("info","battery","network","memory","storage","screen","power","sensors","vibrator","location","locationStatus","wifi","bluetooth","wifiList","bluetoothList"),"system" to listOf("getBrightness","setBrightness","getVolume","setVolume","openSettings","setAutoBrightness","getScreenTimeout","setScreenTimeout","getRotation","setRotation","vibrate","cancelVibration","notify","cancelNotification","speak","playAudio","toast","closeApp","returnToWatchFace","openRecents","openNotificationShade","openUrl","openApp","share"),"files" to listOf("read","write","append","exists","list","mkdir","delete","copy","move","info"),"permissions" to listOf("status")).forEach {(space,methods)->
                         val target=objectValue(api,space)
                         methods.forEach {name->function(target,name) {args->
                             val start=System.nanoTime()
@@ -336,7 +712,7 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                                 }
                                 false
                             }
-                            finally {if(space=="health" || (space=="system" && name in listOf("speak","playAudio")) || (space=="device" && name=="location")) waitingNanos+=System.nanoTime()-start}
+                            finally {if(space=="health" || (space=="system" && name in listOf("speak","playAudio")) || (space=="device" && name in listOf("location","wifiList","bluetoothList"))) waitingNanos+=System.nanoTime()-start}
                             if(space=="system" && name=="closeApp") {
                                 control.closeRequested.set(true)
                                 control.stop()
@@ -436,20 +812,29 @@ class RhinoScriptRunner(private val timeoutMs:Long=15_000,private val networkRoo
                 checkRun()
                 try {cx.evaluateString(scope,code,"main.js",1,null);checkRun()} catch(_:ScriptExited) {}
                 return returned
+                } finally {
+                    val closeStart=System.nanoTime()
+                    try {scopeBle.forEach {runCatching {it.close()}};scopeSockets.forEach {it.finish()}} finally {waitingNanos+=System.nanoTime()-closeStart}
+                }
                 }
                 execute(source,parameters,control.persistVariables,0)
             })
             RunResult(output,logs.toList(),elapsedMs=(System.nanoTime()-started)/1_000_000)
+        } catch(e:ScriptCallbackExited) {
+            RunResult(output,logs.toList(),elapsedMs=(System.nanoTime()-started)/1_000_000)
         } catch(e:ScriptExited) {
             RunResult(output,logs.toList(),elapsedMs=(System.nanoTime()-started)/1_000_000)
         } catch(e:RunAborted) {
-            RunResult(output,logs.toList(),if(e.cancelled) null else "运行超过 ${timeoutMs/1000} 秒，已停止",e.cancelled,(System.nanoTime()-started)/1_000_000)
+            RunResult(output,logs.toList(),null,e.cancelled,(System.nanoTime()-started)/1_000_000)
         } catch(e:RhinoException) {
             RunResult(output,logs.toList(),"${e.sourceName() ?: "main.js"}:${e.lineNumber()}\n${e.details()}",elapsedMs=(System.nanoTime()-started)/1_000_000)
         } catch(e:Exception) {
             RunResult(output,logs.toList(),e.message ?: "运行失败",elapsedMs=(System.nanoTime()-started)/1_000_000)
         } catch(e:StackOverflowError) {
             RunResult(output,logs.toList(),"调用层级过深",elapsedMs=(System.nanoTime()-started)/1_000_000)
-        } finally {httpSessions.forEach {it.close()}}
+        } finally {
+            try {try {if(deviceSession.isInitialized()) deviceSession.value.close()} finally {try {if(bleSession.isInitialized()) bleSession.value.close()} finally {if(socketManager.isInitialized()) socketManager.value.dispose()}}}
+            finally {try {httpSessions.forEach {it.close()}} finally {io.todu.andjs.data.AppCache.leave(cacheTicket)}}
+        }
     }
 }

@@ -18,6 +18,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
@@ -89,6 +96,7 @@ import io.todu.andjs.ui.theme.*
     val context=LocalContext.current
     val scope=rememberCoroutineScope()
     var importing by remember {mutableStateOf(false)}
+    val clearingCache by io.todu.andjs.data.AppCache.busy.collectAsState()
     val importFile=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {uri->
         if(uri!=null) scope.launch {
             importing=true
@@ -104,7 +112,7 @@ import io.todu.andjs.ui.theme.*
     Scaffold(containerColor=colors.background, snackbarHost={ SnackbarHost(snackbar) }, bottomBar={
         AppNavigation(page) {page=it}
     }) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize().widthIn(max=840.dp).padding(horizontal=Dimensions.page)) {
+        Column(Modifier.padding(top=padding.calculateTopPadding(),bottom=0.dp).fillMaxSize().widthIn(max=840.dp).padding(horizontal=Dimensions.page)) {
             MainPageHeader(if(page==0) "And JS" else if(page==1) "全局变量" else "设置") {
                 if(page==0) IconButton(onClick={
                     try {importFile.launch(arrayOf("*/*"))} catch(_:Exception) {scope.launch {snackbar.showSnackbar("此设备没有文件选择器")}}
@@ -128,17 +136,25 @@ import io.todu.andjs.ui.theme.*
                         state.loading -> Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) { CircularProgressIndicator() }
                         state.error != null -> EmptyPanel(state.error!!,"重试",model::retry)
                         items.isEmpty() -> EmptyPanel(if(state.items.isEmpty()) "还没有脚本" else "没有匹配的脚本",if(state.items.isEmpty()) "新建脚本" else null,model::newScript)
-                        else -> SortableScriptGrid(items,model::move,model::saveOrder) {item -> ScriptCard(item,onWidget={model.toggleWidget(item,it)},onRun={model.run(item)},onEdit={model.edit(item)},onDelete={delete=item})}
+                        else -> SortableScriptGrid(items,model::move,model::saveOrder,bottomPadding=padding.calculateBottomPadding()+16.dp) {item -> ScriptCard(item,onWidget={model.toggleWidget(item,it)},onRun={model.run(item)},onEdit={model.edit(item)},onDelete={delete=item})}
 
                     }
                 }
                 1 -> Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
-                3 -> Column(Modifier.verticalScroll(rememberScrollState()).padding(top=20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                3 -> Column(Modifier.verticalScroll(rememberScrollState()).padding(top=20.dp,bottom=padding.calculateBottomPadding()+16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     SettingRow("管理分类",onClick={model.managingCategories.value=true})
                     SettingRow("接口声明",onClick={apiPage=true})
                     SettingRow("权限授权",onClick={permissionsPage=true})
                     SettingRow("手表预览",onClick={watchPreview=true})
                     SettingRow("外观",appearance.mode.title,onClick={chooseAppearance=true})
+                    SettingRow("清除缓存",if(clearingCache) "清理中…" else null,onClick={
+                        if(!clearingCache) scope.launch {
+                            val message=try {io.todu.andjs.data.AppCache.clear(context);"缓存已清除"}
+                            catch(e:kotlinx.coroutines.CancellationException) {throw e}
+                            catch(e:Exception) {e.message ?: "清理失败，请重试"}
+                            snackbar.showSnackbar(message)
+                        }
+                    })
                     SettingRow("版本",io.todu.andjs.BuildConfig.VERSION_NAME)
                     SettingRow("开源许可",onClick={licensesPage=true})
                 }
@@ -191,12 +207,34 @@ import io.todu.andjs.ui.theme.*
 
 @Composable fun AppNavigation(page:Int,onSelect:(Int)->Unit) {
     val colors=MaterialTheme.colorScheme
-    Column {
-    HorizontalDivider(thickness=0.7.dp,color=colors.outlineVariant)
-    NavigationBar(containerColor=colors.surface,tonalElevation=0.dp) {
-        listOf("脚本" to "code","全局变量" to "global","手表" to "watch","设置" to "settings").forEachIndexed {index,(title,icon)->
-            NavigationBarItem(selected=page==index,onClick={onSelect(index)},icon={Glyph(icon,if(page==index) colors.primary else colors.onSurfaceVariant,Modifier.size(21.dp))},label={Text(title,fontSize=11.sp)},colors=NavigationBarItemDefaults.colors(indicatorColor=colors.primaryContainer))
+    val dark=colors.background.luminance()<.5f
+    val glassShape=RoundedCornerShape(32.dp)
+    val glass=if(dark) listOf(Color(0xEB343B42),Color(0xE622292F))
+        else listOf(Color(0xF2FFFFFF),Color(0xE6EDF1F4))
+    val rim=if(dark) listOf(Color.White.copy(alpha=.30f),Color.White.copy(alpha=.08f))
+        else listOf(Color.White.copy(alpha=.95f),Color(0x665F7180))
+    Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal=24.dp,vertical=12.dp),contentAlignment=Alignment.Center) {
+        Row(Modifier.widthIn(max=360.dp).fillMaxWidth()
+            .shadow(8.dp,glassShape,clip=false,ambientColor=Color.Black.copy(alpha=.10f),spotColor=Color.Black.copy(alpha=.14f))
+            .clip(glassShape).background(Brush.verticalGradient(glass))
+            .border(.7.dp,Brush.verticalGradient(rim),glassShape)
+            .selectableGroup().padding(5.dp),horizontalArrangement=Arrangement.spacedBy(3.dp)) {
+            listOf("脚本" to "code","全局变量" to "global","手表" to "watch","设置" to "settings").forEachIndexed {index,(title,icon)->
+                val selected=page==index
+                val tint by animateColorAsState(if(selected) colors.onSurface else colors.onSurfaceVariant,label="navigationTint")
+                val fill by animateColorAsState(if(selected) {
+                    if(dark) Color.White.copy(alpha=.12f) else Color(0xFFE7E8EA)
+                } else Color.Transparent,label="navigationSelection")
+                val itemShape=RoundedCornerShape(25.dp)
+                Column(Modifier.weight(1f).height(52.dp).clip(itemShape)
+                    .background(fill)
+                    .selectable(selected=selected,role=Role.Tab,onClick={onSelect(index)}),
+                    horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center) {
+                    Glyph(icon,tint,Modifier.size(22.dp))
+                    Spacer(Modifier.height(3.dp))
+                    Text(title,color=tint,fontSize=10.sp,lineHeight=12.sp,fontWeight=if(selected) FontWeight.SemiBold else FontWeight.Normal,maxLines=1)
+                }
+            }
         }
     }
-}
 }

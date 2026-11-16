@@ -54,7 +54,7 @@ class ScriptTileService:TileService() {
             .setModifiers(Modifiers.Builder().setClickable(click(null)).setSemantics(Semantics.Builder().setContentDescription("打开 And JS").build()).build())
             .addContent(Image.Builder().setResourceId("app").setWidth(dp(50f)).setHeight(dp(34f)).build())
             .addContent(Spacer.Builder().setHeight(dp(4f)).build())
-            .addContent(Text.Builder().setText("v"+io.todu.andjs.BuildConfig.VERSION_NAME).setFontStyle(FontStyle.Builder().setSize(sp(10f)).setColor(argb(0xFF9CA497.toInt())).build()).build()).build())
+            .addContent(Text.Builder().setText("v"+io.todu.andjs.BuildConfig.VERSION_NAME).setFontStyle(FontStyle.Builder().setSize(sp(10f)).setColor(argb(0xFFA6AFB7.toInt())).build()).build()).build())
         val root=Box.Builder().setWidth(expand()).setHeight(expand()).setModifiers(Modifiers.Builder().setBackground(Background.Builder().setColor(argb(0xFF000000.toInt())).build()).build()).addContent(ring.build()).build()
         return Futures.immediateFuture(TileBuilders.Tile.Builder().setResourcesVersion(version())
             .setTileTimeline(TimelineBuilders.Timeline.Builder().addTimelineEntry(TimelineBuilders.TimelineEntry.Builder().setLayout(Layout.Builder().setRoot(root).build()).build()).build()).build())

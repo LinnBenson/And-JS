@@ -26,6 +26,7 @@ class ScriptCache(private val directory:File) {
         expired.forEach {data.remove(it)}
         return expired.isNotEmpty()
     }
+    fun clear()=synchronized(lock) {file.delete();check(listOf("values.json","values.json.bak","values.json.new").none {File(directory,it).exists()}) {"脚本缓存清理失败"}}
     fun clean()=synchronized(lock) {val data=load();if(prune(data)) save(data)}
     fun call(method:String,args:JSONArray):Any? = synchronized(lock) {
         val key=args.get(0)

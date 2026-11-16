@@ -31,14 +31,14 @@ import io.todu.andjs.runtime.ScriptInteraction
         val overlay=LocalOverlayHost.current
         val cancel={request.respond(null)}
         val maxHeight=(LocalConfiguration.current.screenHeightDp*.8f).dp
-        ModalHost(onDismiss=cancel) {
+        ModalHost(onDismiss=cancel) {close ->
             Surface(modifier=Modifier.padding(horizontal=28.dp).widthIn(max=400.dp).fillMaxWidth().heightIn(max=maxHeight),shape=RoundedCornerShape(24.dp),color=colors.background,
                 border=if(overlay) BorderStroke(1.dp,colors.outlineVariant) else null,
                 shadowElevation=if(overlay) 12.dp else 0.dp) {
                 Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                     Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                         Box(Modifier.size(40.dp).background(colors.primaryContainer,RoundedCornerShape(12.dp)),contentAlignment=Alignment.Center) {
-                            Glyph(when(request.kind) {"input"->"pencil";"select"->"list";"multiSelect"->"list-checks";else->"check"},colors.primary,Modifier.size(22.dp))
+                            Glyph(when(request.kind) {"input"->"pencil";"select"->"list";"multiSelect"->"list-checks";else->"check"},colors.onPrimaryContainer,Modifier.size(22.dp))
                         }
                         Text(request.title,fontSize=18.sp,modifier=Modifier.weight(1f))
                     }
@@ -49,20 +49,20 @@ import io.todu.andjs.runtime.ScriptInteraction
                         "select","multiSelect"->LazyColumn(Modifier.fillMaxWidth().weight(1f,fill=false),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                             itemsIndexed(request.options) {index,label->
                                 val checked=index in selected
-                                val choose={if(request.kind=="select") request.respond(index) else selected=if(checked) selected-index else selected+index}
+                                val choose={if(request.kind=="select") close {request.respond(index)} else selected=if(checked) selected-index else selected+index}
                                 Surface(shape=RoundedCornerShape(12.dp),color=if(checked) colors.primaryContainer else colors.surface) {
                                     val selection=if(request.kind=="select") Modifier.selectable(checked,role=Role.RadioButton,onClick=choose) else Modifier.toggleable(checked,role=Role.Checkbox,onValueChange={choose()})
                                     Row(Modifier.fillMaxWidth().then(selection).heightIn(min=48.dp).padding(horizontal=12.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                                         Text(label,fontSize=14.sp,modifier=Modifier.weight(1f))
-                                        if(request.kind=="multiSelect") Checkbox(checked,onCheckedChange=null)
+                                        if(request.kind=="multiSelect") Checkbox(checked,onCheckedChange=null,colors=CheckboxDefaults.colors(checkedColor=colors.onPrimaryContainer,checkmarkColor=colors.primaryContainer))
                                     }
                                 }
                             }
                         }
                     }
                     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                        OutlinedButton(onClick=cancel,modifier=Modifier.weight(1f)) {Text("取消")}
-                        if(request.kind!="select") Button(onClick={request.respond(when(request.kind) {"input"->text;"select"->selected.first();"multiSelect"->selected.sorted();else->true})},modifier=Modifier.weight(1f)) {Text("确定")}
+                        OutlinedButton(onClick={close(cancel)},modifier=Modifier.weight(1f)) {Text("取消")}
+                        if(request.kind!="select") Button(onClick={val answer=when(request.kind) {"input"->text;"select"->selected.first();"multiSelect"->selected.sorted();else->true};close {request.respond(answer)}},modifier=Modifier.weight(1f)) {Text("确定")}
                     }
                 }
             }

@@ -21,8 +21,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable fun ImagePreview(bitmap:ImageBitmap,watch:Boolean=false,onClose:()->Unit) {
     // The decoded log thumbnail is shared with the viewer; no second decode or network request.
-    ModalHost(onDismiss=onClose) {
-        BackHandler(onBack=onClose)
+    ModalHost(onDismiss=onClose) {close ->
         BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black).clipToBounds()) {
             var scale by remember(bitmap,watch) {mutableFloatStateOf(if(watch) .9f else 1f)}
             var offset by remember(bitmap) {mutableStateOf(Offset.Zero)}
@@ -31,7 +30,7 @@ import androidx.compose.ui.unit.dp
             val height=with(density) {maxHeight.toPx()}
             val fit=minOf(width/bitmap.width,height/bitmap.height)
             Box(Modifier.fillMaxSize().pointerInput(onClose) {
-                detectTapGestures(onTap={onClose()})
+                detectTapGestures(onTap={close(onClose)})
             }.pointerInput(bitmap,width,height) {
                 detectTransformGestures {centroid,pan,zoom,_->
                     val next=(scale*zoom).coerceIn(.25f,6f)
@@ -47,7 +46,7 @@ import androidx.compose.ui.unit.dp
                     scaleX=scale;scaleY=scale;translationX=offset.x;translationY=offset.y
                 })
             }
-            if(!watch) IconButton(onClick=onClose,modifier=Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(8.dp).size(48.dp)
+            if(!watch) IconButton(onClick={close(onClose)},modifier=Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(8.dp).size(48.dp)
                 .background(Color.Black.copy(alpha=.55f),androidx.compose.foundation.shape.CircleShape)) {
                 Glyph("x",Color.White,Modifier.size(24.dp),"关闭图片预览")
             }

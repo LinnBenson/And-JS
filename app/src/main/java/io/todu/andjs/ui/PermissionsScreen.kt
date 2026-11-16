@@ -53,25 +53,27 @@ import io.todu.andjs.runtime.AndroidPlatformApi
     BackHandler(onBack=onBack)
     Scaffold(containerColor=MaterialTheme.colorScheme.background,topBar={Row(Modifier.statusBarsPadding().height(60.dp),verticalAlignment=Alignment.CenterVertically) {
         IconButton(onClick=onBack) {Glyph("back",MaterialTheme.colorScheme.onSurface,Modifier.size(22.dp),"返回")}
-        Text("权限授权",fontSize=18.sp)
-    }}) {padding->Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        if(status["watch"]!=true) PermissionRow("悬浮窗","在桌面显示脚本运行弹窗",overlay) {open(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)}
-        PermissionRow("通知","允许脚本发送通知",notifications) {
+        Text("权限授权",fontSize=22.sp,fontWeight=androidx.compose.ui.text.font.FontWeight.SemiBold)
+    }}) {padding->Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+        PermissionSection("连接与设备")
+        ConnectionPermissions()
+        PermissionSection("系统与通知")
+        if(status["watch"]!=true) PermissionRow("悬浮窗","在其他应用上显示运行窗口",overlay) {open(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)}
+        PermissionRow("通知","脚本通知与运行提醒",notifications) {
             if(Build.VERSION.SDK_INT>=33 && context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED) permissionFlow(context) {notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)}
             else context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,context.packageName))
         }
-        PermissionRow("系统操作","无障碍授权，用于最近任务和通知栏",status["accessibility"]==true) {
+        PermissionRow("系统操作","最近任务与通知栏操作",status["accessibility"]==true) {
             try {context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))} catch(_:Exception) {error="此设备没有无障碍设置"}
         }
+        PermissionRow("修改系统设置","亮度、息屏时间与屏幕旋转",status["writeSettings"]==true) {open(Settings.ACTION_MANAGE_WRITE_SETTINGS)}
+        PermissionSection("文件与健康")
         FitnessPermissionButton()
-        ConnectionPermissions()
-        PermissionRow("网络访问","用于 HTTPS 请求，无需手动授权",true,null)
-        PermissionRow("修改系统设置","亮度、息屏时间及屏幕旋转；依设备支持",status["writeSettings"]==true) {open(Settings.ACTION_MANAGE_WRITE_SETTINGS)}
-        if(status["watch"]!=true) PermissionRow("共享文件访问","允许脚本访问共享存储；仅手机",status["sharedFiles"]==true) {
+        if(status["watch"]!=true) PermissionRow("共享文件访问","读写手机共享文件",status["sharedFiles"]==true) {
             if(Build.VERSION.SDK_INT>=30) open(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
             else permissionFlow(context) {storage.launch(arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE,android.Manifest.permission.WRITE_EXTERNAL_STORAGE))}
         }
-        if(status["watch"]!=true) PermissionRow("健康数据",when(healthStatus["status"]) {"available"->"步数、心率、睡眠、距离、热量、体重";"installOrUpdate"->"需要安装或更新 Health Connect";else->"此设备暂不支持 Health Connect"},(healthStatus["granted"] as? List<*>)?.size==6) {
+        if(status["watch"]!=true) PermissionRow("健康数据",when(healthStatus["status"]) {"available"->"步数、心率与睡眠记录";"installOrUpdate"->"需要安装或更新 Health Connect";else->"此设备暂不支持 Health Connect"},(healthStatus["granted"] as? List<*>)?.size==6) {
             try {
                 when(health.availability()) {
                     HealthConnectClient.SDK_AVAILABLE->healthPermissions.launch(HealthApi.permissions)
@@ -80,16 +82,11 @@ import io.todu.andjs.runtime.AndroidPlatformApi
                 }
             } catch(_:Exception) {error="无法打开健康授权，请检查 Health Connect"}
         }
-        Text("应用文件目录无需授权。",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("网络与应用文件目录无需额外授权。",modifier=Modifier.padding(horizontal=6.dp,vertical=10.dp),fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
         error?.let {Text(it,color=MaterialTheme.colorScheme.error)}
     }}
 }
 @Composable private fun PermissionRow(title:String,description:String,granted:Boolean,onClick:(()->Unit)?) {
-    Surface(shape=MaterialTheme.shapes.medium,color=MaterialTheme.colorScheme.surface) {
-        Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically) {
-            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(6.dp)) {Text(title,fontSize=15.sp);Text(description,fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
-            if(onClick==null) Text("已允许",fontSize=12.sp,color=MaterialTheme.colorScheme.primary)
-            else TextButton(onClick=onClick) {Text(if(granted) "已授权" else "授权")}
-        }
-    }
+    val icon=when(title) {"悬浮窗"->"app-window";"通知"->"bell";"系统操作"->"shield";"修改系统设置"->"settings";"共享文件访问"->"folder";"健康数据"->"heart";else->"global"}
+    PermissionCard(title,description,icon,granted,onClick=onClick)
 }

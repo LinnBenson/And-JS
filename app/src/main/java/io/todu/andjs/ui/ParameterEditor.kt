@@ -29,6 +29,7 @@ fun ParameterList(
     onEdit: (Int) -> Unit,
     onDelete: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    bottomPadding: androidx.compose.ui.unit.Dp = 20.dp,
     showAdd: Boolean = true,
     enabled: Boolean = true,
 ) {
@@ -60,7 +61,7 @@ fun ParameterList(
             Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
                 Text(if (query.isBlank()) "暂无变量" else "没有匹配的变量", color = colors.onSurfaceVariant, fontSize = 14.sp)
             }
-        } else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
+        } else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = bottomPadding)) {
             items(matches, key = { it.index }) { (index, parameter) ->
                 Surface(shape = RoundedCornerShape(14.dp), color = colors.surface) {
                     Row(Modifier.fillMaxWidth().heightIn(min = 62.dp).padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {

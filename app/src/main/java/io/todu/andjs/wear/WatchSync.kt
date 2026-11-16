@@ -101,6 +101,7 @@ class WatchSyncService:WearableListenerService() {
         } finally {response.release()}
         val origin=item.uri.host ?: return
         if(!app.watchStore.apply(text,origin,map.getLong("sequence"),map.getString("hash") ?: return)) return
+        kotlinx.coroutines.runBlocking {io.todu.andjs.data.AppCache.clear(app)}
         runCatching {androidx.wear.tiles.TileService.getUpdater(this).requestUpdate(io.todu.andjs.widget.ScriptTileService::class.java)}
         runCatching {io.todu.andjs.widget.WatchComplicationSlots.refresh(this)}
         val ack=PutDataMapRequest.create("/andjs/ack/$origin")

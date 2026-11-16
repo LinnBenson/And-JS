@@ -176,15 +176,15 @@ private class JavascriptHighlight(private val dark: Boolean): VisualTransformati
             tokens.findAll(text.text).forEach { match ->
                 val token=match.value
                 val color=when {
-                    token.startsWith("//") || token.startsWith("/*") -> if(dark) Color(0xFF8E9C87) else Color(0xFF788270)
-                    token.firstOrNull() in listOf('\'', '"', '`') -> if(dark) Color(0xFFBEDC93) else Color(0xFF426822)
-                    token.firstOrNull()?.isDigit()==true -> if(dark) Color(0xFFE6C78D) else Color(0xFF8C6120)
-                    token in listOf("true","false","null","undefined","Infinity","NaN") -> if(dark) Color(0xFFD6AFF3) else Color(0xFF8544A5)
-                    token in listOf("andjs","console","JSON","Math","Object","Array","String","Number","Boolean","Date","RegExp","Error","Map","Set") -> if(dark) Color(0xFF8BCBEE) else Color(0xFF236E9B)
-                    token !in listOf("if","for","while","switch","catch","function") && token.first().isLetter() && text.text.indexOfFirstAfter(match.range.last+1) == '(' -> if(dark) Color(0xFFE5D491) else Color(0xFF8B641D)
-                    match.range.first>0 && text.text[match.range.first-1]=='.' -> if(dark) Color(0xFFB7CDE8) else Color(0xFF466B92)
+                    token.startsWith("//") || token.startsWith("/*") -> if(dark) Color(0xFF939DA5) else Color(0xFF66717A)
+                    token.firstOrNull() in listOf('\'', '"', '`') -> if(dark) Color(0xFFB9C9AE) else Color(0xFF506644)
+                    token.firstOrNull()?.isDigit()==true -> if(dark) Color(0xFFD5C197) else Color(0xFF79613A)
+                    token in listOf("true","false","null","undefined","Infinity","NaN") -> if(dark) Color(0xFFC7B8D1) else Color(0xFF745C82)
+                    token in listOf("andjs","console","JSON","Math","Object","Array","String","Number","Boolean","Date","RegExp","Error","Map","Set") -> if(dark) Color(0xFFACC4D4) else Color(0xFF46677C)
+                    token !in listOf("if","for","while","switch","catch","function") && token.first().isLetter() && text.text.indexOfFirstAfter(match.range.last+1) == '(' -> if(dark) Color(0xFFD2C6A6) else Color(0xFF78653D)
+                    match.range.first>0 && text.text[match.range.first-1]=='.' -> if(dark) Color(0xFFB5C4D3) else Color(0xFF526C83)
                     token.first() in "{}()[]+*/%=!<>?:&|~^;-" -> if(dark) Color(0xFFB9C1CC) else Color(0xFF66717E)
-                    else -> if(dark) Color(0xFF9ADAC8) else Color(0xFF187460)
+                    else -> if(dark) Color(0xFFAEC9C1) else Color(0xFF446D62)
                 }
                 addStyle(SpanStyle(color=color),match.range.first,match.range.last+1)
             }

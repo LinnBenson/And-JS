@@ -34,8 +34,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.todu.andjs.runtime.ScriptInteraction
 import io.todu.andjs.wear.WatchViewModel
 
-private val watchGreen=Color(0xFFB6FF80)
-private val watchCard=Color(0xFF20242B)
+private val watchAccent=Color(0xFF8FAABE)
+private val watchCard=Color(0xFF151B21)
 private val watchContentShape=RoundedCornerShape(8.dp)
 @Composable fun WatchScreen(model:WatchViewModel,preview:Boolean=false,onHome:()->Unit) {
     var previewImage by remember {mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null)}
@@ -50,7 +50,7 @@ private val watchContentShape=RoundedCornerShape(8.dp)
     val run by model.execution.collectAsStateWithLifecycle()
     val interaction by model.interaction.collectAsStateWithLifecycle()
     BackHandler(enabled=noteIndex!=null) {noteIndex=null}
-    MaterialTheme(colorScheme=darkColorScheme(primary=watchGreen,onPrimary=Color.Black,background=Color.Black,surface=watchCard,onSurface=Color.White)) {
+    MaterialTheme(colorScheme=io.todu.andjs.ui.theme.Dark.copy(background=Color.Black,surface=watchCard)) {
         Surface(Modifier.fillMaxSize(),color=Color.Black) {
             if(noteIndex!=null) {
                 val index=noteIndex!!
@@ -67,11 +67,7 @@ private val watchContentShape=RoundedCornerShape(8.dp)
                         }
                     }
                     Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom=4.dp),contentAlignment=Alignment.Center) {
-                        IconButton(onClick={clickFeedback();noteIndex=null},modifier=Modifier.size(48.dp)) {
-                            Box(Modifier.size(32.dp).background(watchCard,androidx.compose.foundation.shape.CircleShape),contentAlignment=Alignment.Center) {
-                                Glyph("x",watchGreen,Modifier.size(20.dp),"关闭便签")
-                            }
-                        }
+                        WatchBackButton("关闭便签") {clickFeedback();noteIndex=null}
                     }
                 }
             }
@@ -83,7 +79,7 @@ private val watchContentShape=RoundedCornerShape(8.dp)
                     CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
                         IconButton(onClick={clickFeedback();permissions=true},modifier=Modifier.weight(1f).height(40.dp)) {
-                            Glyph("shield",Color(0xFF9CA497),Modifier.size(18.dp),"权限授权")
+                            Glyph("shield",Color(0xFFA6AFB7),Modifier.size(18.dp),"权限授权")
                         }
                         snapshot.notes.forEachIndexed {index,text->
                             IconButton(enabled=text.isNotEmpty(),onClick={
@@ -93,11 +89,11 @@ private val watchContentShape=RoundedCornerShape(8.dp)
                                     checkNotNull(clipboard).setPrimaryClip(android.content.ClipData.newPlainText("便签 ${index+1}",text))
                                 } catch(_:Exception) {android.widget.Toast.makeText(context,"复制失败",android.widget.Toast.LENGTH_SHORT).show()}
                             },modifier=Modifier.weight(1f).height(40.dp).semantics {contentDescription="便签 ${index+1}"}) {
-                                Text("${index+1}",fontSize=16.sp,color=if(text.isNotEmpty()) watchGreen else Color.DarkGray)
+                                Text("${index+1}",fontSize=16.sp,color=if(text.isNotEmpty()) watchAccent else Color.DarkGray)
                             }
                         }
                         IconButton(onClick={clickFeedback();grid=!grid;preferences.edit().putBoolean("grid",grid).apply()},modifier=Modifier.weight(1f).height(40.dp)) {
-                            Glyph(if(grid) "list" else "layout-grid",Color(0xFF9CA497),Modifier.size(18.dp),if(grid) "切换列表显示" else "切换宫格显示")
+                            Glyph(if(grid) "list" else "layout-grid",Color(0xFFA6AFB7),Modifier.size(18.dp),if(grid) "切换列表显示" else "切换宫格显示")
                         }
                     }
                     }
@@ -165,26 +161,22 @@ private val watchContentShape=RoundedCornerShape(8.dp)
                 Column(Modifier.fillMaxSize(),horizontalAlignment=Alignment.CenterHorizontally) {
                 LazyColumn(modifier=Modifier.weight(1f).fillMaxWidth(),state=list,contentPadding=PaddingValues(start=24.dp,end=24.dp,top=28.dp,bottom=8.dp),verticalArrangement=Arrangement.spacedBy(6.dp),horizontalAlignment=Alignment.CenterHorizontally) {
                     item {
-                        if(current.running) CircularProgressIndicator(Modifier.size(30.dp),color=watchGreen,strokeWidth=3.dp)
-                        else Glyph(if(current.result?.error!=null || current.result?.output=="执行失败") "x" else "check",if(current.result?.error!=null || current.result?.output=="执行失败") Color(0xFFFF8B83) else watchGreen,Modifier.size(32.dp))
+                        if(current.running) CircularProgressIndicator(Modifier.size(30.dp),color=watchAccent,strokeWidth=3.dp)
+                        else Glyph(if(current.result?.error!=null || current.result?.output=="执行失败") "x" else "check",if(current.result?.error!=null || current.result?.output=="执行失败") Color(0xFFE4AEAA) else watchAccent,Modifier.size(32.dp))
                     }
                     item {Text(if(current.running) current.name else if(current.result?.stopped==true) "已停止" else if(current.result?.error!=null || current.result?.output=="执行失败") "执行失败" else "执行完成",fontSize=16.sp,maxLines=2)}
-                    itemsIndexed(current.logs) {_,line->if(line.level=="img") ImageLogItem(line) {previewImage=it} else WatchTextCard(line.text,when(line.level) {"warn"->Color(0xFFFFD38A);"error"->Color(0xFFFF8B83);else->Color.White})}
+                    itemsIndexed(current.logs) {_,line->if(line.level=="img") ImageLogItem(line) {previewImage=it} else WatchTextCard(line.text,when(line.level) {"warn"->Color(0xFFD5C197);"error"->Color(0xFFE4AEAA);else->Color.White})}
                     if(text.isNotEmpty()) item {WatchTextCard(text)}
                 }
                 Row(Modifier.fillMaxWidth().padding(bottom=4.dp),horizontalArrangement=Arrangement.Center,verticalAlignment=Alignment.CenterVertically) {
                     if(current.running) {
                         IconButton(onClick={clickFeedback();model.stop()},modifier=Modifier.size(48.dp).semantics {contentDescription="停止脚本"}) {
                             Box(Modifier.size(32.dp).background(watchCard,androidx.compose.foundation.shape.CircleShape),contentAlignment=Alignment.Center) {
-                                Box(Modifier.size(12.dp).background(watchGreen,RoundedCornerShape(2.dp)))
+                                Box(Modifier.size(12.dp).background(watchAccent,RoundedCornerShape(2.dp)))
                             }
                         }
                     } else {
-                        IconButton(onClick={clickFeedback();returnFromRun()},modifier=Modifier.size(48.dp)) {
-                            Box(Modifier.size(32.dp).background(watchCard,androidx.compose.foundation.shape.CircleShape),contentAlignment=Alignment.Center) {
-                                Glyph("back",watchGreen,Modifier.size(20.dp),if(model.returnToWatchFace) "返回表盘" else "返回列表")
-                            }
-                        }
+                        WatchBackButton(if(model.returnToWatchFace) "返回表盘" else "返回列表") {clickFeedback();returnFromRun()}
                     }
                 }
                 }
@@ -230,7 +222,7 @@ private val watchContentShape=RoundedCornerShape(8.dp)
                 LazyColumn(modifier=Modifier.weight(1f).fillMaxWidth().padding(start=horizontalInset,end=horizontalInset,bottom=maxOf(0.dp,verticalInset-footerHeight)),contentPadding=PaddingValues(top=verticalInset+4.dp,bottom=4.dp),verticalArrangement=Arrangement.spacedBy(8.dp,Alignment.CenterVertically),horizontalAlignment=Alignment.CenterHorizontally) {
                     item {Text(request.title,fontSize=16.sp,textAlign=androidx.compose.ui.text.style.TextAlign.Center,modifier=Modifier.fillMaxWidth().padding(horizontal=headingInset))}
                     if(request.content.isNotBlank()) item {Text(request.content,fontSize=12.sp,color=Color.LightGray,textAlign=androidx.compose.ui.text.style.TextAlign.Center,modifier=Modifier.fillMaxWidth().padding(horizontal=headingInset/2))}
-                    if(request.kind=="input") item {androidx.compose.foundation.text.BasicTextField(text,{if(it.length<=10000) text=it},modifier=Modifier.fillMaxWidth().height(48.dp),textStyle=LocalTextStyle.current.copy(fontSize=14.sp,color=MaterialTheme.colorScheme.onSurface),maxLines=4,interactionSource=inputInteraction,cursorBrush=androidx.compose.ui.graphics.SolidColor(watchGreen),decorationBox={innerTextField->
+                    if(request.kind=="input") item {androidx.compose.foundation.text.BasicTextField(text,{if(it.length<=10000) text=it},modifier=Modifier.fillMaxWidth().height(48.dp),textStyle=LocalTextStyle.current.copy(fontSize=14.sp,color=MaterialTheme.colorScheme.onSurface),maxLines=4,interactionSource=inputInteraction,cursorBrush=androidx.compose.ui.graphics.SolidColor(watchAccent),decorationBox={innerTextField->
                         OutlinedTextFieldDefaults.DecorationBox(value=text,innerTextField={Box(Modifier.height(48.dp),contentAlignment=Alignment.CenterStart) {innerTextField()}},enabled=true,singleLine=false,visualTransformation=androidx.compose.ui.text.input.VisualTransformation.None,interactionSource=inputInteraction,contentPadding=PaddingValues(horizontal=12.dp),container={
                             OutlinedTextFieldDefaults.Container(enabled=true,isError=false,interactionSource=inputInteraction,shape=watchContentShape)
                         },trailingIcon={
@@ -249,13 +241,13 @@ private val watchContentShape=RoundedCornerShape(8.dp)
                                 app.voiceInputActive=false;app.externalFlow=false;voicePending=false
                                 android.widget.Toast.makeText(context,"无法打开系统语音输入",android.widget.Toast.LENGTH_SHORT).show()
                             }
-                        }) {Glyph("mic",watchGreen,Modifier.size(20.dp),"语音输入")}
+                        }) {Glyph("mic",watchAccent,Modifier.size(20.dp),"语音输入")}
                         })
                     })}
                     if(request.kind in listOf("select","multiSelect")) itemsIndexed(request.options) {index,label->
                         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
-                        Surface(onClick={if(request.kind=="select") request.respond(index) else selected=if(index in selected) selected-index else selected+index},shape=watchContentShape,color=if(index in selected) Color(0xFF35532B) else watchCard) {
-                            Row(Modifier.fillMaxWidth().heightIn(min=40.dp).padding(horizontal=12.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically) {Text(label,fontSize=14.sp,modifier=Modifier.weight(1f));if(index in selected) Glyph("check",watchGreen,Modifier.size(18.dp))}
+                        Surface(onClick={if(request.kind=="select") request.respond(index) else selected=if(index in selected) selected-index else selected+index},shape=watchContentShape,color=if(index in selected) Color(0xFF344A5B) else watchCard) {
+                            Row(Modifier.fillMaxWidth().heightIn(min=40.dp).padding(horizontal=12.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically) {Text(label,fontSize=14.sp,modifier=Modifier.weight(1f));if(index in selected) Glyph("check",watchAccent,Modifier.size(18.dp))}
                         }
                         }
                     }
@@ -264,7 +256,7 @@ private val watchContentShape=RoundedCornerShape(8.dp)
                 if(request.kind=="select") Box(Modifier.fillMaxWidth().padding(bottom=4.dp),contentAlignment=Alignment.Center) {
                     IconButton(onClick={request.respond(null)},modifier=Modifier.size(48.dp)) {
                         Box(Modifier.size(32.dp).background(watchCard,androidx.compose.foundation.shape.CircleShape),contentAlignment=Alignment.Center) {
-                            Glyph("x",watchGreen,Modifier.size(20.dp),"取消")
+                            Glyph("x",watchAccent,Modifier.size(20.dp),"取消")
                         }
                     }
                 } else Row(Modifier.fillMaxWidth().padding(top=4.dp).height(48.dp),horizontalArrangement=Arrangement.spacedBy(4.dp)) {

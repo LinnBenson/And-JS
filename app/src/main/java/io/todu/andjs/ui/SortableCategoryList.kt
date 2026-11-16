@@ -18,7 +18,7 @@ import io.todu.andjs.domain.ScriptCategory
 
 @Composable fun <T> SortableList(
     values: List<T>, keyOf:(T)->String, onMove: (String, String) -> Unit,
-    modifier: Modifier = Modifier, onDrop:()->Unit = {}, content: @Composable (T) -> Unit,
+    modifier: Modifier = Modifier, onDrop:()->Unit = {}, bottomPadding:androidx.compose.ui.unit.Dp=20.dp, content: @Composable (T) -> Unit,
 ) {
     val state = rememberLazyListState()
     var dragging by remember { mutableStateOf<String?>(null) }
@@ -57,7 +57,7 @@ import io.todu.andjs.domain.ScriptCategory
             onDragEnd={dragging=null;drop()}, onDragCancel={dragging=null;drop()},
             onDrag={change,amount -> if(dragging!=null) {change.consume();pointer+=amount.y;reorder()}},
         )
-    },verticalArrangement=Arrangement.spacedBy(8.dp),contentPadding=PaddingValues(top=8.dp,bottom=20.dp)) {
+    },verticalArrangement=Arrangement.spacedBy(8.dp),contentPadding=PaddingValues(top=8.dp,bottom=bottomPadding)) {
         items(values,key=keyOf) {category ->
             val active=dragging==keyOf(category)
             val position=state.layoutInfo.visibleItemsInfo.find {it.key==keyOf(category)}?.offset ?: 0

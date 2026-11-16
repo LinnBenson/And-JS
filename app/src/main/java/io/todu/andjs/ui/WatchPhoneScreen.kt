@@ -1,6 +1,7 @@
 package io.todu.andjs.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,7 +36,7 @@ import androidx.activity.compose.BackHandler
     LaunchedEffect(message) {message?.let {snackbar.showSnackbar(it);model.dismissMessage()}}
     BackHandler {if(choosing) choosing=false else onNavigate(0)}
     Scaffold(containerColor=colors.background,snackbarHost={SnackbarHost(snackbar)},bottomBar={if(!choosing) AppNavigation(2,onNavigate)}) {padding->
-        Column(Modifier.padding(padding).fillMaxSize().padding(horizontal=20.dp)) {
+        Column(Modifier.padding(top=padding.calculateTopPadding(),bottom=if(choosing) padding.calculateBottomPadding() else 0.dp).fillMaxSize().padding(horizontal=20.dp)) {
             MainPageHeader(if(choosing) "添加脚本" else "手表",onBack=if(choosing) ({choosing=false}) else null) {
                 if(choosing) IconButton(onClick={model.selectWatch(selected);choosing=false},enabled=selected.size<=100) {Glyph("check",colors.primary,Modifier.size(22.dp),"完成选择")}
                 else {
@@ -50,7 +51,9 @@ import androidx.activity.compose.BackHandler
                     items(state.items.filter {it.name.contains(query,true)},key={it.id}) {item->
                         Surface(onClick={selected=if(item.id in selected) selected-item.id else if(selected.size<100) selected+item.id else selected},shape=RoundedCornerShape(14.dp),color=colors.surface) {
                             Row(Modifier.fillMaxWidth().padding(start=16.dp,end=8.dp).heightIn(min=58.dp),verticalAlignment=Alignment.CenterVertically) {
-                                Glyph(item.icon,scriptColors(item.color).foreground,Modifier.size(22.dp));Spacer(Modifier.width(12.dp))
+                                val tint=scriptColors(item.color)
+                                Box(Modifier.size(36.dp).background(tint.background,RoundedCornerShape(10.dp)),contentAlignment=Alignment.Center) {Glyph(item.icon,tint.foreground,Modifier.size(22.dp))}
+                                Spacer(Modifier.width(12.dp))
                                 Text(item.name,modifier=Modifier.weight(1f),maxLines=2,overflow=TextOverflow.Ellipsis)
                                 Checkbox(item.id in selected,onCheckedChange=null)
                             }
@@ -66,10 +69,12 @@ import androidx.activity.compose.BackHandler
                 }
                 val items=ids.mapNotNull {id->state.items.find {it.id==id}}
                 if(items.isEmpty()) Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) {Text("尚未添加脚本",color=colors.onSurfaceVariant)}
-                else SortableList(items,keyOf={it.id},onMove={a,b->if(!busy) model.moveWatch(a,b)},modifier=Modifier.weight(1f),onDrop={model.selectWatch(model.watchIds.value)}) {item->
+                else SortableList(items,keyOf={it.id},onMove={a,b->if(!busy) model.moveWatch(a,b)},modifier=Modifier.weight(1f),onDrop={model.selectWatch(model.watchIds.value)},bottomPadding=padding.calculateBottomPadding()+16.dp) {item->
                     Surface(shape=RoundedCornerShape(14.dp),color=colors.surface) {
                         Row(Modifier.fillMaxWidth().heightIn(min=62.dp).padding(start=16.dp,end=4.dp),verticalAlignment=Alignment.CenterVertically) {
-                            Glyph(item.icon,scriptColors(item.color).foreground,Modifier.size(22.dp));Spacer(Modifier.width(12.dp))
+                            val tint=scriptColors(item.color)
+                                Box(Modifier.size(36.dp).background(tint.background,RoundedCornerShape(10.dp)),contentAlignment=Alignment.Center) {Glyph(item.icon,tint.foreground,Modifier.size(22.dp))}
+                                Spacer(Modifier.width(12.dp))
                             Text(item.name,modifier=Modifier.weight(1f),maxLines=2,overflow=TextOverflow.Ellipsis)
                             WidgetToggle(item.id in widgets,{model.toggleWatchWidget(item.id,it)},enabled=!busy)
                             IconButton(onClick={model.selectWatch(ids-item.id)},enabled=!busy) {Glyph("trash-2",colors.onSurfaceVariant,Modifier.size(20.dp),"从手表移除${item.name}")}

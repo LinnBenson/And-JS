@@ -118,14 +118,21 @@ class HomeViewModel(private val repository: ScriptRepository, private val runner
     data class Execution(val name:String,val running:Boolean=true,val result:RunResult?=null,val icon:String="code",val color:String="mint",val logs:List<LogEntry> = emptyList())
     val execution=MutableStateFlow<Execution?>(null)
     val interaction=MutableStateFlow<ScriptInteraction?>(null)
-    private var background=false
+    @Volatile private var cacheEpoch=io.todu.andjs.data.AppCache.epoch.value
+    init {viewModelScope.launch {
+        io.todu.andjs.data.AppCache.epoch.collect {epoch->
+            if(cacheEpoch<epoch) {background();cacheEpoch=epoch}
+        }
+    }}
+    @Volatile private var background=false
     private var runControl:RunControl?=null
     fun stopRun() {runControl?.stop()}
     fun background() {background=true;stopRun();interaction.value?.respond(null);interaction.value=null;execution.value=null}
-    fun closeRun() {if(execution.value?.running!=true) execution.value=null}
+    fun closeRun() {runControl?.closeRequested?.set(true);background()}
     override fun onCleared() {stopRun();super.onCleared()}
     fun run(item: Script, draftSource:String?=null,onDraftParameters:((List<ScriptParameter>)->Unit)?=null) {
-        if(runControl!=null) return
+        if(runControl!=null || io.todu.andjs.data.AppCache.busy.value) return
+        cacheEpoch=io.todu.andjs.data.AppCache.epoch.value
         background=false
         var latestItem=item
         val control=RunControl(loadScript={id->kotlinx.coroutines.runBlocking {
@@ -135,7 +142,7 @@ class HomeViewModel(private val repository: ScriptRepository, private val runner
             repository.save(ScriptDocument(saved.copy(parameters=values),repository.read(id)))
             mutable.update {state->state.copy(items=state.items.map {if(it.id==id) it.copy(parameters=values) else it})}
             refreshWatch()
-        }},onInteraction={interaction.value=it},persistVariables={namespace,values ->
+        }},onInteraction={if(!background && cacheEpoch==io.todu.andjs.data.AppCache.epoch.value) interaction.value=it else it?.respond(null)},persistVariables={namespace,values ->
             kotlinx.coroutines.runBlocking {
                 if(namespace=="value") {
                     val updated=latestItem.copy(parameters=values)
@@ -158,7 +165,7 @@ class HomeViewModel(private val repository: ScriptRepository, private val runner
         viewModelScope.launch {
             val result=try {runner.run(draftSource ?: repository.read(item.id),item.parameters,globalRepository.load(),control) {logs->execution.update {it?.copy(logs=logs)}}}
                 catch(e:Exception) {RunResult("",emptyList(),"无法运行脚本："+(e.message ?: "读取失败"))}
-            execution.value=if(background || control.closeRequested.get()) null else Execution(item.name,false,result,item.icon,item.color,result.logs)
+            execution.value=if(background || control.closeRequested.get() || cacheEpoch!=io.todu.andjs.data.AppCache.epoch.value) null else Execution(item.name,false,result,item.icon,item.color,result.logs)
             runControl=null
         }
     }

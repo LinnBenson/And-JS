@@ -19,6 +19,8 @@ import java.nio.file.StandardCopyOption
 import java.util.Base64
 
 class AndroidPlatformApi(private val context:Context):PlatformApi {
+    override fun openDeviceSession(control:RunControl):DeviceSession=AndroidDeviceSession(context.applicationContext,control)
+    override fun openBle(control:RunControl):BleSession=AndroidBleSession(context.applicationContext,control)
     override fun call(namespace:String,method:String,args:JSONArray,control:RunControl):Any? =
         when {
             namespace=="system" && method in listOf("speak","playAudio")->ScriptAudio.play(context,method,args,control) {path->
@@ -26,6 +28,10 @@ class AndroidPlatformApi(private val context:Context):PlatformApi {
             }
             namespace=="health"->HealthApi(context).call(method,args,control)
             namespace=="device" && method=="location"->LocationApi(context).read(if(args.length()>0) args.getJSONObject(0) else org.json.JSONObject(),control)
+            namespace=="device" && method in listOf("wifiList","bluetoothList")->RadioListApi(context).let { api->
+                val options=if(args.length()>0) args.getJSONObject(0) else org.json.JSONObject()
+                if(method=="wifiList") api.wifiList(options,control) else api.bluetoothList(options,control)
+            }
             else->call(namespace,method,args)
         }
     private val watch=context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)

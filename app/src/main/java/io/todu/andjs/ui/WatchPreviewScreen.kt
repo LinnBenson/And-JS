@@ -183,7 +183,7 @@ import java.io.File
         Column(horizontalAlignment=Alignment.CenterHorizontally,modifier=Modifier.clickable(onClick=onOpen)) {
             Image(painterResource(R.drawable.app_symbol),"打开 And JS",Modifier.size(width=50.dp,height=34.dp))
             Spacer(Modifier.height(4.dp))
-            Text("v"+io.todu.andjs.BuildConfig.VERSION_NAME,color=Color(0xFF9CA497),fontSize=10.sp)
+            Text("v"+io.todu.andjs.BuildConfig.VERSION_NAME,color=Color(0xFFA6AFB7),fontSize=10.sp)
         }
     }
 }

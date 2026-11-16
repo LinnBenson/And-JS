@@ -29,8 +29,8 @@ import io.todu.andjs.runtime.FitnessApi
         owner.lifecycle.addObserver(observer);onDispose {owner.lifecycle.removeObserver(observer)}
     }
     val missing=(status["steps"]==true && status["stepsGranted"]!=true) || (status["heartRate"]==true && status["heartRateGranted"]!=true)
-    if(missing) TextButton(onClick={
-        if(denied) context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:${context.packageName}")))
+    if(status["steps"]==true || status["heartRate"]==true) PermissionCard("健身传感器","步数与实时心率","heart",!missing,onClick={
+        if(denied || !missing) context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:${context.packageName}")))
         else permissionFlow(context) {launcher.launch(api.permissions())}
-    }) {Text(if(denied) "健身权限设置" else "授权健身传感器")}
+    })
 }

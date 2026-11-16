@@ -3,6 +3,11 @@ import android.app.Application
 import io.todu.andjs.data.FileScriptRepository
 import io.todu.andjs.runtime.RhinoScriptRunner
 class AndJsApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        registerActivityLifecycleCallbacks(io.todu.andjs.runtime.ForegroundActivity)
+        runCatching {io.todu.andjs.runtime.ScriptDnd.recover(this)}
+    }
     val isWatch by lazy {packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_WATCH)}
     var externalFlow=false
     var voiceInputActive=false

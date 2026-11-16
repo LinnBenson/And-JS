@@ -54,6 +54,6 @@ fun GlobalEditorScreen(
             onDelete = { index ->
                 saving = true
                 onSave(initial.filterIndexed { i, _ -> i != index }) { saving = false }
-            }, modifier = Modifier.padding(padding).padding(horizontal = 20.dp).fillMaxSize(), showAdd = false, enabled = !saving)
+            }, modifier = Modifier.padding(top=padding.calculateTopPadding()).padding(horizontal = 20.dp).fillMaxSize(), bottomPadding=padding.calculateBottomPadding()+16.dp, showAdd = false, enabled = !saving)
     }
 }

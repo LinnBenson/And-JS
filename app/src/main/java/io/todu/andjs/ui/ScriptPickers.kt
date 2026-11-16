@@ -20,36 +20,60 @@ val scriptColorOptions=listOf(
     "indigo" to "靛蓝", "violet" to "紫藤", "lavender" to "薰衣草", "purple" to "葡萄", "pink" to "樱粉", "rose" to "玫瑰",
     "red" to "珊瑚红", "peach" to "蜜桃", "orange" to "杏橙", "amber" to "琥珀", "sand" to "沙金", "lemon" to "柠檬",
     "lime" to "青柠", "olive" to "橄榄", "brown" to "可可", "taupe" to "暖灰", "slate" to "蓝灰", "gray" to "石墨",
+    "sapphire" to "宝蓝",
+    "lake" to "湖蓝",
+    "petrol" to "深青",
+    "pine" to "松绿",
+    "jade" to "碧绿",
+    "grape" to "深紫",
+    "berry" to "莓红",
+    "wine" to "酒红",
+    "brick" to "砖红",
+    "copper" to "铜橙",
+    "ochre" to "赭黄",
+    "midnight" to "墨蓝",
 )
 fun scriptColorPair(id:String):Pair<Long,Long> = when(id) {
-        "emerald" -> 0xFFD1F2DE to 0xFF176342
-        "teal" -> 0xFFCCEFEB to 0xFF17645D
-        "cyan" -> 0xFFD2F2FA to 0xFF176479
-        "cobalt" -> 0xFFD7E3FF to 0xFF3154A0
-        "indigo" -> 0xFFE0E1FA to 0xFF484A91
-        "lavender" -> 0xFFEAE6FF to 0xFF64549C
-        "purple" -> 0xFFF0D9F6 to 0xFF7B358B
-        "pink" -> 0xFFFFDEF0 to 0xFF94376C
-        "red" -> 0xFFFFDAD6 to 0xFF9A3831
-        "peach" -> 0xFFFFDFD0 to 0xFF945039
-        "amber" -> 0xFFFFE6B4 to 0xFF855812
-        "lemon" -> 0xFFF8F3BE to 0xFF716614
-        "lime" -> 0xFFEBF5C4 to 0xFF57691C
-        "olive" -> 0xFFE4E9CF to 0xFF5B663A
-        "brown" -> 0xFFEBDDD1 to 0xFF74513B
-        "taupe" -> 0xFFEAE3DD to 0xFF6C5D51
-        "slate" -> 0xFFDEE6EF to 0xFF4A6078
-        "blue" -> 0xFFDDEEFF to 0xFF255C91
-        "violet" -> 0xFFEDE3FA to 0xFF69418A
-        "rose" -> 0xFFF9E1E7 to 0xFF953C59
-        "orange" -> 0xFFFFE8D3 to 0xFF935015
-        "sand" -> 0xFFF4EECF to 0xFF786119
-        "gray" -> 0xFFE7EAE5 to 0xFF52604C
-        else -> 0xFFDFF8D2 to 0xFF285020
-    }
+    "emerald" -> 0xFF20563E to 0xFFFFFFFF
+    "teal" -> 0xFF268272 to 0xFFFFFFFF
+    "cyan" -> 0xFF5E797D to 0xFFFFFFFF
+    "cobalt" -> 0xFF2455A4 to 0xFFFFFFFF
+    "indigo" -> 0xFF34365F to 0xFFFFFFFF
+    "lavender" -> 0xFF787183 to 0xFFFFFFFF
+    "purple" -> 0xFF7A4295 to 0xFFFFFFFF
+    "pink" -> 0xFF886D7A to 0xFFFFFFFF
+    "red" -> 0xFFB9433D to 0xFFFFFFFF
+    "peach" -> 0xFF847062 to 0xFFFFFFFF
+    "amber" -> 0xFF946E22 to 0xFFFFFFFF
+    "lemon" -> 0xFF7E7539 to 0xFFFFFFFF
+    "lime" -> 0xFF657C34 to 0xFFFFFFFF
+    "olive" -> 0xFF59643B to 0xFFFFFFFF
+    "brown" -> 0xFF654638 to 0xFFFFFFFF
+    "taupe" -> 0xFF7B736B to 0xFFFFFFFF
+    "slate" -> 0xFF42586B to 0xFFFFFFFF
+    "blue" -> 0xFF45799D to 0xFFFFFFFF
+    "violet" -> 0xFF8269A1 to 0xFFFFFFFF
+    "rose" -> 0xFFA13F64 to 0xFFFFFFFF
+    "orange" -> 0xFFA7642D to 0xFFFFFFFF
+    "sand" -> 0xFF7D745C to 0xFFFFFFFF
+    "gray" -> 0xFF363C43 to 0xFFFFFFFF
+    "sapphire" -> 0xFF345BD2 to 0xFFFFFFFF
+    "lake" -> 0xFF087D96 to 0xFFFFFFFF
+    "petrol" -> 0xFF164B56 to 0xFFFFFFFF
+    "pine" -> 0xFF246747 to 0xFFFFFFFF
+    "jade" -> 0xFF19835F to 0xFFFFFFFF
+    "grape" -> 0xFF50265F to 0xFFFFFFFF
+    "berry" -> 0xFFB52D77 to 0xFFFFFFFF
+    "wine" -> 0xFF6D233F to 0xFFFFFFFF
+    "brick" -> 0xFF984132 to 0xFFFFFFFF
+    "copper" -> 0xFFB45923 to 0xFFFFFFFF
+    "ochre" -> 0xFF8D7020 to 0xFFFFFFFF
+    "midnight" -> 0xFF202D46 to 0xFFFFFFFF
+    else -> 0xFF65796F to 0xFFFFFFFF
+}
 @Composable fun scriptColors(id:String):ScriptColors {
     val pair=scriptColorPair(id)
-    return if(isSystemInDarkTheme()) ScriptColors(Color(pair.second).copy(alpha=.35f),Color(pair.first)) else ScriptColors(Color(pair.first),Color(pair.second))
+    return ScriptColors(Color(pair.first),Color(pair.second))
 }
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable fun AppearancePicker(icon:String,color:String,onIcon:(String)->Unit,onColor:(String)->Unit,onDismiss:()->Unit) {
@@ -98,8 +122,8 @@ fun scriptColorPair(id:String):Pair<Long,Long> = when(id) {
             (listOf(ScriptCategory("","未分类"))+categories).forEach {entry->
                 Surface(onClick={onSelect(entry.id)},shape=RoundedCornerShape(12.dp),color=if(selected==entry.id) colors.primaryContainer else colors.surface) {
                     Row(Modifier.fillMaxWidth().heightIn(min=52.dp).padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically) {
-                        Glyph("folder",colors.primary,Modifier.size(20.dp)); Text(entry.name,fontSize=14.sp,modifier=Modifier.weight(1f).padding(horizontal=14.dp))
-                        if(selected==entry.id) Glyph("check",colors.primary,Modifier.size(20.dp))
+                        Glyph("folder",if(selected==entry.id) colors.onPrimaryContainer else colors.primary,Modifier.size(20.dp)); Text(entry.name,fontSize=14.sp,modifier=Modifier.weight(1f).padding(horizontal=14.dp))
+                        if(selected==entry.id) Glyph("check",colors.onPrimaryContainer,Modifier.size(20.dp))
                     }
                 }
             }

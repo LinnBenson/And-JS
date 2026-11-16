@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,7 +35,7 @@ class ComplicationConfigActivity:ComponentActivity() {
             val snapshot by app.watchStore.state.collectAsState()
             var saving by remember {mutableStateOf(false)}
             var error by remember {mutableStateOf<String?>(null)}
-            MaterialTheme(colorScheme=darkColorScheme(primary=Color(0xFFB6FF80),background=Color.Black,surface=Color(0xFF20242B))) {
+            MaterialTheme(colorScheme=io.todu.andjs.ui.theme.Dark.copy(background=Color.Black)) {
                 Surface(Modifier.fillMaxSize(),color=Color.Black) {
                     LazyColumn(contentPadding=PaddingValues(horizontal=24.dp,vertical=28.dp),
                         verticalArrangement=Arrangement.spacedBy(8.dp),horizontalAlignment=Alignment.CenterHorizontally) {
@@ -57,7 +58,8 @@ class ComplicationConfigActivity:ComponentActivity() {
                                 }
                             },enabled=!saving,shape=RoundedCornerShape(24.dp),color=MaterialTheme.colorScheme.surface) {
                                 Row(Modifier.fillMaxWidth().heightIn(min=48.dp).padding(12.dp),verticalAlignment=Alignment.CenterVertically) {
-                                    Glyph(document.item.icon,MaterialTheme.colorScheme.primary,Modifier.size(22.dp))
+                                    val tint=io.todu.andjs.ui.scriptColors(document.item.color)
+                                    Box(Modifier.size(34.dp).background(tint.background,RoundedCornerShape(10.dp)),contentAlignment=Alignment.Center) {Glyph(document.item.icon,tint.foreground,Modifier.size(22.dp))}
                                     Spacer(Modifier.width(10.dp))
                                     Text(document.item.name,fontSize=14.sp,maxLines=2,overflow=TextOverflow.Ellipsis)
                                 }

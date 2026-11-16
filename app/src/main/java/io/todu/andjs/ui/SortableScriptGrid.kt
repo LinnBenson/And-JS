@@ -18,7 +18,7 @@ import androidx.compose.ui.zIndex
 import io.todu.andjs.domain.Script
 import kotlinx.coroutines.launch
 
-@Composable fun SortableScriptGrid(items:List<Script>,onMove:(String,String)->Unit,onDrop:()->Unit,content:@Composable (Script)->Unit) {
+@Composable fun SortableScriptGrid(items:List<Script>,onMove:(String,String)->Unit,onDrop:()->Unit,bottomPadding:androidx.compose.ui.unit.Dp=24.dp,content:@Composable (Script)->Unit) {
     val state=rememberLazyGridState()
     var dragging by remember {mutableStateOf<String?>(null)}
     var pointer by remember {mutableStateOf(Offset.Zero)}
@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
     val scope=rememberCoroutineScope()
     val widthDp=androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.width / androidx.compose.ui.platform.LocalDensity.current.density
     val columns=if(widthDp<360) 1 else if(widthDp<600) 2 else 3
-    LazyVerticalGrid(columns=GridCells.Fixed(columns),state=state,contentPadding=PaddingValues(top=8.dp,bottom=24.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.fillMaxSize().pointerInput(state) {
+    LazyVerticalGrid(columns=GridCells.Fixed(columns),state=state,contentPadding=PaddingValues(top=8.dp,bottom=bottomPadding),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp),modifier=Modifier.fillMaxSize().pointerInput(state) {
         detectDragGesturesAfterLongPress(onDragStart={point->
             state.layoutInfo.visibleItemsInfo.find {point.x>=it.offset.x && point.x<it.offset.x+it.size.width && point.y>=it.offset.y && point.y<it.offset.y+it.size.height}?.let {
                 dragging=it.key as String;pointer=point;grab=point-Offset(it.offset.x.toFloat(),it.offset.y.toFloat());haptic.performHapticFeedback(HapticFeedbackType.LongPress)

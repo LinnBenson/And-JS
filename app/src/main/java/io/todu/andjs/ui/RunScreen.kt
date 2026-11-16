@@ -2,6 +2,7 @@ package io.todu.andjs.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -29,7 +30,7 @@ import androidx.compose.ui.window.DialogProperties
     val colors=MaterialTheme.colorScheme
     val overlay=LocalOverlayHost.current
     val tint=scriptColors(run.color)
-    val warningColor=Color(0xFF8A5000)
+    val warningColor=if(colors.background.luminance() < .5f) Color(0xFFD5C197) else Color(0xFF79613A)
     val logState=rememberLazyListState()
     var followLogs by remember {mutableStateOf(true)}
     LaunchedEffect(logState) {
@@ -44,14 +45,14 @@ import androidx.compose.ui.window.DialogProperties
     val resultText=run.result?.error ?: run.result?.output.orEmpty()
     val hasResult=resultText.isNotEmpty()
     val height=(LocalConfiguration.current.screenHeightDp * .84f).dp.coerceAtMost(620.dp)
-    ModalHost(onDismiss={if(!run.running) onClose()},backEnabled=!run.running) {
+    ModalHost(onDismiss=onClose) {close ->
         Surface(modifier=Modifier.padding(horizontal=24.dp).widthIn(max=440.dp).fillMaxWidth().height(height),shape=RoundedCornerShape(24.dp),color=colors.background,
             border=if(overlay) BorderStroke(1.dp,colors.outlineVariant) else null,
             shadowElevation=if(overlay) 12.dp else 0.dp) {
             Column(Modifier.fillMaxSize().padding(20.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)) {
                 Text(run.name,fontSize=18.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
                 Box(Modifier.size(104.dp),contentAlignment=Alignment.Center) {
-                    if(run.running) CircularProgressIndicator(modifier=Modifier.fillMaxSize(),color=tint.foreground,trackColor=tint.background,strokeWidth=3.dp)
+                    if(run.running) CircularProgressIndicator(modifier=Modifier.fillMaxSize(),color=colors.primary,trackColor=colors.outlineVariant,strokeWidth=3.dp)
                     Box(Modifier.size(62.dp).background(tint.background,RoundedCornerShape(18.dp)),contentAlignment=Alignment.Center) {
                         Glyph(run.icon,tint.foreground,Modifier.size(32.dp))
                     }
@@ -59,24 +60,24 @@ import androidx.compose.ui.window.DialogProperties
                 if(hasLogs) {
                     LazyColumn(modifier=Modifier.fillMaxWidth().then(if(hasResult) Modifier.heightIn(max=height*.32f) else Modifier.weight(1f)),state=logState,verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         itemsIndexed(run.logs,key={index,_->index}) {_,line->
-                            Surface(modifier=Modifier.fillMaxWidth().then(if(line.level!="img") Modifier.clickable(onClickLabel="复制日志",onClick=copyTextAction(line.text,"日志")) else Modifier),shape=RoundedCornerShape(10.dp),color=Color.White) {
-                                if(line.level=="img") ImageLogItem(line) {previewImage=it} else SelectionContainer {Text(line.text,color=when(line.level) {"warn"->warningColor;"error"->Color(0xFFB3261E);else->Color(0xFF181C17)},modifier=Modifier.padding(horizontal=12.dp,vertical=10.dp),fontSize=12.sp)}
+                            Surface(modifier=Modifier.fillMaxWidth().then(if(line.level!="img") Modifier.clickable(onClickLabel="复制日志",onClick=copyTextAction(line.text,"日志")) else Modifier),shape=RoundedCornerShape(10.dp),color=colors.surfaceContainerLow) {
+                                if(line.level=="img") ImageLogItem(line) {previewImage=it} else SelectionContainer {Text(line.text,color=when(line.level) {"warn"->warningColor;"error"->colors.error;else->colors.onSurface},modifier=Modifier.padding(horizontal=12.dp,vertical=10.dp),fontSize=12.sp)}
                             }
                         }
                     }
                 }
                 if(hasResult) {
-                    Surface(modifier=Modifier.fillMaxWidth().weight(1f).clickable(onClickLabel="复制结果",onClick=copyTextAction(resultText,"结果")),shape=RoundedCornerShape(10.dp),color=Color.White) {
+                    Surface(modifier=Modifier.fillMaxWidth().weight(1f).clickable(onClickLabel="复制结果",onClick=copyTextAction(resultText,"结果")),shape=RoundedCornerShape(10.dp),color=colors.surfaceContainerLow) {
                         Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                             SelectionContainer {
-                                Text(resultText,fontSize=14.sp,color=if(run.result?.error!=null) Color(0xFFB3261E) else Color(0xFF181C17),modifier=Modifier.padding(horizontal=12.dp,vertical=10.dp))
+                                Text(resultText,fontSize=14.sp,color=if(run.result?.error!=null) colors.error else colors.onSurface,modifier=Modifier.padding(horizontal=12.dp,vertical=10.dp))
                             }
                         }
                     }
                 }
                 if(!hasLogs && !hasResult) Spacer(Modifier.weight(1f))
                 if(run.running) OutlinedButton(onClick=onStop,modifier=Modifier.widthIn(min=120.dp)) {Text("停止")}
-                else Button(onClick=onClose,modifier=Modifier.widthIn(min=120.dp)) {Text("关闭")}
+                else Button(onClick={close(onClose)},modifier=Modifier.widthIn(min=120.dp)) {Text("关闭")}
             }
         }
     }
