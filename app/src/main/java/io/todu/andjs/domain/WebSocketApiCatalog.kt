@@ -1,7 +1,7 @@
 package io.todu.andjs.domain
 
 object WebSocketApiCatalog {
-    private fun field(name:String,type:String,description:String)=ApiArgument(name,type,description)
+    private fun field(name:String,type:String,description:String)=ApiArgument(name,if(name.startsWith("options.") && !type.contains("可选")) "$type，可选" else type,description)
     val methods=listOf(
         ApiMethod("ws.connect",ApiCategory.NETWORK,"andjs.ws","andjs.ws.connect(url, options)","建立本次脚本专用的 WebSocket 连接。",listOf(
             field("url","string","wss:// 或 ws:// 地址。建议 wss；明文 ws 受系统网络策略限制。使用系统证书校验，不跟随重定向。"),

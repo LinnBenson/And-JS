@@ -596,6 +596,10 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                 listOf("sensors","network","torch","nfc","dnd").forEach {kind->
                 val target=objectValue(api,kind)
                 function(target,"status") {try {jsonValue(deviceSession.value.status(kind))} catch(e:Exception) {deviceFailure(e)}}
+                if(kind=="network") function(target,"scanPorts") {args->
+                    try {jsonValue(TcpPortScanner.scan(httpOptions(args.getOrNull(0)),control,lowMemory))}
+                    catch(e:Exception) {deviceFailure(e)}
+                }
                 function(target,if(kind in listOf("torch","dnd")) "open" else "watch") {args->
                     try {
                         val options=httpOptions(args.getOrNull(0))

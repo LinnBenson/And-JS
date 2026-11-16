@@ -67,7 +67,7 @@ import androidx.compose.ui.unit.sp
     }
     val candidates = remember(prefix,value.text) {
         if(prefix.isEmpty()) emptyList() else {
-            val api=ApiCatalog.methods.map { EditorSuggestion(it.signature.substringBefore('('),it.signature,it.summary,true) }
+            val api=ApiCatalog.methods.filter {it.signature.contains('(') && it.signature.substringBefore('(').matches(Regex("[A-Za-z_$][A-Za-z0-9_$.]*"))}.map { EditorSuggestion(it.signature.substringBefore('('),it.signature,it.summary,true) }
             val keywords=listOf("const","let","var","function","return","if","else","for","while","try","catch","throw","new","true","false","null","undefined")
                 .map {EditorSuggestion(it,it,"JavaScript",false)}
             val receiver=prefix.substringBeforeLast('.', "")

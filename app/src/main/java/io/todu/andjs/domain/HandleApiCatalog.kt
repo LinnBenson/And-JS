@@ -1,0 +1,27 @@
+package io.todu.andjs.domain
+
+/** Individual entries for methods previously described only inside a parent entry. */
+object HandleApiCatalog {
+    private fun a(name:String,type:String,text:String)=ApiArgument(name,type,text)
+    private fun device(id:String,signature:String,summary:String,args:List<ApiArgument>,returns:String,example:String,fields:List<ApiArgument> = emptyList())=
+        ApiMethod(id,ApiCategory.DEVICE,"设备监听",signature,summary,args,returns,example,"可用",fields,"手机、手表 · 依本机能力")
+    val methods=listOf(
+        device("sensors.status","andjs.sensors.status()","列出可以持续监听的本机传感器类型。",emptyList(),"{types: string[]}；空数组表示没有支持的传感器。","exit(andjs.sensors.status().types);",listOf(a("types","string[]","可传给 sensors.watch 的 type 值；不包含健康传感器。"))),
+        device("network.status","andjs.network.status()","读取默认网络当前状态，不创建监听。",emptyList(),"网络快照，字段与 andjs.device.network() 相同。","const network = andjs.network.status();\nexit({connected: network.connected, type: network.type, validated: network.validated});",ConnectivityApiCatalog.methods.first {it.id=="device.network"}.fields),
+        device("torch.status","andjs.torch.status()","检查闪光灯硬件及相机授权。",emptyList(),"{available, granted}；两者都为 true 才可以尝试 open。","exit(andjs.torch.status());",listOf(a("available","boolean","是否有闪光灯摄像头，不保证当前没有被其他应用占用。"),a("granted","boolean","是否已授予相机权限。"))),
+        device("nfc.status","andjs.nfc.status()","检查 NFC 是否存在、开启，以及应用页面是否在前台。",emptyList(),"{available, enabled, foreground}；仍可能受到系统 Reader Mode 支持限制。","exit(andjs.nfc.status());",listOf(a("available","boolean","是否存在 NFC 适配器。"),a("enabled","boolean","NFC 是否开启。"),a("foreground","boolean","是否有处于前台的应用页面。"))),
+        device("dnd.status","andjs.dnd.status()","读取勿扰授权和系统当前勿扰状态。",emptyList(),"{granted, filter}。", "exit(andjs.dnd.status());",listOf(a("granted","boolean","是否获得勿扰模式访问授权。"),a("filter","number","Android 值：0 未知、1 不限制、2 优先通知、3 不允许打扰、4 仅闹钟。"))),
+        device("torch.set","light.set(enabled)","切换已打开的手电筒，不释放对象。",listOf(a("enabled","boolean","true 打开，false 关闭。light 来自 andjs.torch.open()。")),"true；对象已关闭或设备被占用时抛错。", "const light = andjs.torch.open();\ntry {\n  andjs.sleep(500);\n  light.set(false);\n} finally {\n  light.close();\n}"),
+        device("device.handle.onMessage","handle.onMessage(callback)","注册设备事件回调，配合 listen 使用。",listOf(a("callback","function","收到事件时执行；重复注册覆盖原回调。事件字段由 watch 类型决定。")),"当前句柄，可链式调用。注册本身不会保持运行，也不会分发事件。", "const handle = andjs.network.watch();\nhandle.onMessage(function (event) {\n  andjs.log.info(event.type, \"network\");\n});\nhandle.listen();"),
+        device("device.handle.onError","handle.onError(callback)","接收 listen 期间的设备监听错误。",listOf(a("callback","function","参数包含 name、code、message；同步 watch/open/write/set 错误仍由 try/catch 处理。")),"当前句柄。未注册时 listen 抛错；错误先通知 onError，再通知 onClose。", "const handle = andjs.network.watch();\nhandle.onMessage(function (event) { console.log(event); });\nhandle.onError(function (error) { console.log(error.code, error.message); });\nhandle.listen();"),
+        device("device.handle.onClose","handle.onClose(callback)","接收 listen 分发的关闭通知。",listOf(a("callback","function","参数是 info() 的结果，含 kind、closed、code。")),"当前句柄。每个句柄最多分发一次；脚本停止或结束时不再调用回调。", "const handle = andjs.network.watch();\nhandle.onMessage(function (event) { console.log(event); handle.close(); });\nhandle.onClose(function (info) { console.log(info.code); });\nhandle.listen();"),
+        device("device.handle.receive","handle.receive(timeout)","手动等待并取出一次设备事件。",listOf(a("timeout","number，可选","1–15000 毫秒整数，默认 10000。不能在同一句柄 listen 期间调用。")),"事件对象；超时返回 null。关闭或监听失败抛 DeviceError。", "const handle = andjs.network.watch();\ntry {\n  const event = handle.receive(1000);\n  exit(event === null ? \"暂无事件\" : event);\n} finally {\n  handle.close();\n}"),
+        device("device.handle.listen","handle.listen()","持续等待设备事件并串行执行回调。",emptyList(),"句柄关闭后返回 info()；传感器、网络和 NFC 须先 onMessage，手电筒和勿扰无需消息回调。后续语句直到监听结束才执行。", "const handle = andjs.network.watch();\nhandle.onMessage(function (event) { console.log(event); });\nhandle.listen(); // 持续等待，用户停止时释放"),
+        device("device.handle.info","handle.info()","查看当前设备句柄是否已经关闭。",emptyList(),"{kind, closed, code}。kind 为 sensors/network/torch/nfc/dnd；code 是 OPEN、CLOSED 或关闭原因。", "const handle = andjs.network.watch();\nconsole.log(handle.info());\nhandle.close();\nexit(handle.info());"),
+        device("device.handle.close","handle.close()","释放此设备监听或临时操作。",emptyList(),"undefined，可重复调用。手电筒关闭，临时勿扰撤销；不关闭其他句柄。", "const handle = andjs.network.watch();\ntry { console.log(handle.receive(1000)); } finally { handle.close(); }")
+    ) + listOf(
+        BleApiCatalog.methods.first {it.id=="ble.send"}.copy(id="ble.write",signature="device.write(service, characteristic, data, options)",summary="写入 GATT 特征值，与 device.send 完全相同。",example="device.write(\"FFF0\", \"FFF1\", \"010203\", {encoding: \"hex\"});"),
+        ApiMethod("ble.unsubscribe",ApiCategory.NETWORK,"andjs.ble","device.unsubscribe(service, characteristic)","取消一个特征值的通知或指示订阅。",listOf(a("service / characteristic","string","之前 subscribe 使用的服务和特征 UUID。")),"true；配置失败抛 BleError。保留连接及其他订阅，已入队的通知仍可能被读取。", "device.subscribe(\"FFF0\", \"FFF2\");\nconsole.log(device.receive(1000));\ndevice.unsubscribe(\"FFF0\", \"FFF2\");","可用 · 依设备协议"),
+        ApiMethod("ble.info",ApiCategory.NETWORK,"andjs.ble","handle.info()","查看扫描、广播或 GATT 对象状态。",emptyList(),"{kind, closed, code}；kind 为 scan/advertise/connection；code 为 OPEN、CLOSED 或错误原因。", "const scan = andjs.ble.scan({service: \"180D\"});\nconsole.log(scan.info());\nscan.close();\nexit(scan.info());","可用 · 依本机蓝牙支持")
+    )
+}

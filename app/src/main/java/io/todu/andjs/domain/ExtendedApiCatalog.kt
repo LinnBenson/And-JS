@@ -1,7 +1,7 @@
 package io.todu.andjs.domain
 
 object ExtendedApiCatalog {
-    private fun field(name:String,type:String,description:String)=ApiArgument(name,type,description)
+    private fun field(name:String,type:String,description:String)=ApiArgument(name,if(name.startsWith("options.") && !type.contains("可选")) "$type，可选" else type,description)
     private val httpFields=listOf(
         field("status","number","HTTP 状态码。"),field("statusText","string","HTTP 状态文字，HTTP/2 下可能为空。"),field("ok","boolean","状态码是否为 200–299。"),field("url","string","最终 URL。"),
         field("headers","object<string, string[]>","小写响应头名称映射到值数组，保留 Set-Cookie 等重复头。"),field("contentType","string","响应内容类型，无此头为空字符串。"),
