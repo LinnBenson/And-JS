@@ -51,6 +51,28 @@ JavaScript 引擎：[Mozilla Rhino](https://github.com/mozilla/rhino)，MPL-2.0�
 
 设置中的“清除缓存”会停止正在运行的脚本，清除当前运行日志、图片日志、脚本缓存（`andjs.cache`）、分享临时副本、临时下载和应用缓存目录。脚本、变量、便签、设置及主动保存的文件保留。手表收到有效同步并保存后会自动执行同样的清理；清理完成后才确认同步成功。若任务未能及时退出，会提示稍后重试，避免删除仍在使用的文件。
 
+## 局域网传送
+
+连接 Wi-Fi 后运行 `andjs.httpServer.upload(options)`，通过 `onStart(server)` 取得网页地址和访问码，是否输出及输出格式由脚本决定。同一局域网的设备打开网页，可发送文字到运行日志，或上传文件到本机 `Download/` 根目录；重名文件自动编号。
+
+```js
+andjs.httpServer.upload({
+  port: 8080,
+  maxFileSizeMB: 100,
+  onStart: function (server) {
+    console.log("服务已启动");
+    console.log(server.url);
+    console.log("访问码：" + server.token);
+  }
+});
+```
+
+可用 `token` 指定访问码，`onText(text)` 自定义文字处理，`onProgress(upload)` 自定义进度。上传期间每秒刷新，完成或失败立即更新；`upload.id` 在同一次上传中不变，可用于 `andjs.log.info(文字, upload.id)` 原位更新日志。
+
+服务使用小缓冲区流式写入，不限制上传速度，同时接收一个文件，最多处理两个连接。单文件上限默认 100 MB，可设为 1–1024 MB。文字最多 2000 字符。停止脚本、关闭窗口或进入后台会关闭服务并清理未完成文件；Wi-Fi 断开或地址变化后需重新运行。`upload` 持续等待请求，回调应尽快返回。
+
+手机和手表均可使用。Android 10 及以上无需额外存储授权，Android 8–9 需存储权限；手表预览使用手机网络并保存到手机下载目录。服务需要 Wi-Fi IPv4 地址，路由器须允许设备互访。HTTP 不加密，请在可信局域网使用。
+
 ## 网络、文件与系统
 
 `andjs.http` 提供同步请求、上传和下载，支持查询参数、请求头、JSON、表单、文本、二进制、multipart、认证、Cookie、重定向及超时。请求在后台等待，不阻塞界面，可停止。默认使用 HTTPS，明文 HTTP 受 Android 系统策略限制。

@@ -19,6 +19,7 @@ import java.nio.file.StandardCopyOption
 import java.util.Base64
 
 class AndroidPlatformApi(private val context:Context):PlatformApi {
+    override fun openHttpServer(port:Int,token:String,maxFileSizeMB:Int,control:RunControl):HttpServerSession = AndroidHttpServer.open(context.applicationContext,HttpServerOptions(port,token,maxFileSizeMB),control)
     override fun openDeviceSession(control:RunControl):DeviceSession=AndroidDeviceSession(context.applicationContext,control)
     override fun openBle(control:RunControl):BleSession=AndroidBleSession(context.applicationContext,control)
     override fun call(namespace:String,method:String,args:JSONArray,control:RunControl):Any? =

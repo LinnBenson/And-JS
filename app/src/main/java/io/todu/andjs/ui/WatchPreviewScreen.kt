@@ -64,6 +64,7 @@ import java.io.File
             val root=File(context.filesDir,"watch-preview/user")
             val platform=object:PlatformApi {
                 private val host=AndroidPlatformApi(context)
+                override fun openHttpServer(port:Int,token:String,maxFileSizeMB:Int,control:RunControl):HttpServerSession=host.openHttpServer(port,token,maxFileSizeMB,control)
                 override fun call(namespace:String,method:String,args:org.json.JSONArray):Any? = when(namespace) {
                     "notes"->io.todu.andjs.runtime.ScriptNotes({store.state.value.notes},store::writeNote).call(method,args)
                     "cache"->ScriptCache(File(context.filesDir,"watch-preview/script-cache")).call(method,args)
@@ -108,7 +109,7 @@ import java.io.File
                 }
                 Spacer(Modifier.height(20.dp))
                 Text("加载手表栏目所选脚本，无需同步",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("变量与文件独立，硬件信息来自手机",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("变量独立，硬件与下载目录来自手机",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

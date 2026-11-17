@@ -670,6 +670,84 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                     } catch(e:Exception) {deviceFailure(e)}
                 }}
                 installHttp(objectValue(api,"http"),defaultHttpClient,true)
+                function(objectValue(api,"httpServer"),"upload") {args->
+                    require(callbackDepth==0) {"不能在回调中启动 HTTP 服务"}
+                    require(args.size<=1) {"请使用 upload(options)"}
+                    val options=args.firstOrNull()
+                    require(options==null || options is Undefined || options is NativeObject) {"options 必须为对象"}
+                    fun option(name:String):Any? = (options as? NativeObject)?.let {ScriptableObject.getProperty(it,name)}?.takeUnless {it===Scriptable.NOT_FOUND || it is Undefined}
+                    fun integer(name:String,default:Int,min:Int,max:Int):Int {
+                        val value=option(name) ?: return default
+                        require(value is Number && value.toDouble().isFinite() && value.toDouble()%1==0.0 && value.toDouble() in min.toDouble()..max.toDouble()) {"$name 须为 $min–$max 的整数"}
+                        return value.toInt()
+                    }
+                    val port=integer("port",8080,1024,65535)
+                    val size=integer("maxFileSizeMB",100,1,1024)
+                    val tokenOption=option("token")
+                    require(tokenOption==null || tokenOption is CharSequence) {"token 必须为字符串"}
+                    val token=tokenOption?.toString() ?: UUID.randomUUID().toString().replace("-","").take(12)
+                    require(token.length in 1..64 && token.all {it in '!'..'~'}) {"访问码须为 1–64 个非空格 ASCII 字符"}
+                    fun callbackOption(name:String):org.mozilla.javascript.Function? {
+                        val value=option(name)
+                        require(value==null || value is org.mozilla.javascript.Function) {"$name 必须为函数"}
+                        return value as? org.mozilla.javascript.Function
+                    }
+                    val onStart=callbackOption("onStart")
+                    val onText=callbackOption("onText")
+                    val onProgress=callbackOption("onProgress")
+                    val server=(platform ?: error("当前环境不支持 HTTP 服务")).openHttpServer(port,token,size,control)
+                    fun callback(fn:org.mozilla.javascript.Function,arg:Any?) {
+                        callbackDepth++
+                        try {fn.call(cx,scope,scope,arrayOf(arg))} finally {callbackDepth--}
+                    }
+                    fun progress(value:UploadProgress) {
+                        if(onProgress!=null) callback(onProgress,js(value.values()))
+                        else {
+                            val message=when(value.status) {
+                                "completed"->"${value.name}：已保存到 Download/"
+                                "failed"->"${value.name}：${value.error}"
+                                else->"${value.name}：${value.values()["percent"]}%（${value.receivedBytes} / ${value.totalBytes} 字节）"
+                            }
+                            writeLog(LogEntry("info",message),value.id)
+                        }
+                    }
+                    try {
+                        checkRun()
+                        server.failure?.let {error(it)}
+                        if(onStart!=null) callback(onStart,js(mapOf("url" to server.url,"port" to port,"token" to server.token,
+                            "status" to "listening","directory" to "Download/","maxFileSizeMB" to size)))
+                        var lastProgress=0L
+                        var lastId:String?=null
+                        while(!server.isClosed) {
+                            checkRun()
+                            val waitStart=System.nanoTime()
+                            val active=server.progress
+                            val waitMs=if(active==null) 0L else if(lastId!=active.id) 1L
+                                else ((lastProgress+1_000_000_000L-waitStart+999_999)/1_000_000).coerceIn(1L,1000L)
+                            val event=try {server.poll(waitMs)} finally {waitingNanos+=System.nanoTime()-waitStart}
+                            checkRun()
+                            when(event) {
+                                is HttpServerEvent.Text-> {
+                                    try {
+                                        if(onText!=null) callback(onText,event.text) else writeLog(LogEntry("info",event.text),null)
+                                        event.reply.complete(true)
+                                    } finally {event.reply.complete(false)}
+                                }
+                                is HttpServerEvent.Progress->progress(event.value)
+                                HttpServerEvent.Wake,null->Unit
+                            }
+                            val current=server.progress
+                            val now=System.nanoTime()
+                            if(current!=null && (lastId!=current.id || now-lastProgress>=1_000_000_000L)) {
+                                progress(current);lastProgress=now;lastId=current.id
+                            }
+                        }
+                        checkRun()
+                        server.failure?.let {error(it)}
+                    } finally {server.close();server.awaitClosed()}
+                    Undefined.instance
+                }
+
                 function(log,"img") {args->
                     val host=platform ?: error("当前环境不支持图片日志")
                     require(args.size<=3) {"请使用 img(source, id, maxWidth)"}

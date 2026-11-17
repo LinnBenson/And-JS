@@ -88,3 +88,11 @@ WatchViewModel 不依赖手机仓库或通信服务，完全使用本机 WatchSt
 HealthApi 为手机和手表提供统一的 status/current/summary/read 入口。current 复用本机传感器读取，手机 summary/read 访问 Health Connect，手表 summary(steps) 通过 Health Services STEPS_DAILY 获取今日累计值；不使用重启累计计数替代。手表按需注册 PassiveListenerCallback，限时等待并在 finally 注销，不使用后台服务。用户先从权限页授权，脚本同步等待健康数据，等待时间不计入 JS CPU 预算。步数、距离、热量使用聚合接口；心率、睡眠、体重分页读取并转换为 JS 原生对象，字段在 HealthApiCatalog 逐项定义。
 
 LocationApi 使用本机系统定位源，校验前台权限、缓存年龄和等待超时；停止及 finally 移除监听。ConnectivityApi 提供单次网络/Wi-Fi/蓝牙快照，不扫描、不常驻监听。Health Services 最低 API 30，仅在版本检查通过的手表调用；manifest overrideLibrary 保留其他设备 API 26 支持。
+
+## 局域网上传服务
+
+`andjs.httpServer.upload(options)` 通过 `PlatformApi.openHttpServer` 创建 `AndroidHttpServer`。只监听已连接 Wi-Fi 的 IPv4 地址，保留其他网络路由；Wi-Fi 丢失或地址变化时关闭。每个进程最多一个上传服务，脚本停止、回调退出或异常均释放监听、连接、网络回调和未完成文件。
+
+解释器线程负责 `onStart`、`onText` 和 `onProgress` 回调，不跨线程访问 Rhino 上下文。监听使用一个阻塞线程，请求使用最多两个空闲可回收线程，不建立请求排队线程池。文字事件队列最多八项，上传同时只允许一个。空闲时解释器阻塞等待事件；上传进度只保存最新字节计数，按一秒截止时间生成快照，完成和失败立即通知。文件接收循环复用 16 KiB 缓冲区，无主动限速或传输延时。
+
+内置网页作为单个静态资源交付，不加载外部资源。请求头、文字和文件大小有独立上限；请求使用访问码校验，连接处理后关闭。文件直接写入 `Download/`；Android 10 及以上通过 MediaStore pending 项接收，完整后发布并读取最终重名编号，失败时删除 pending 项；旧系统检查写入权限并原子保留唯一文件名。
