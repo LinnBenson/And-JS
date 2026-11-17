@@ -91,7 +91,7 @@ LocationApi 使用本机系统定位源，校验前台权限、缓存年龄和�
 
 ## 局域网上传服务
 
-`andjs.httpServer.upload(options)` 通过 `PlatformApi.openHttpServer` 创建 `AndroidHttpServer`。只监听已连接 Wi-Fi 的 IPv4 地址，保留其他网络路由；Wi-Fi 丢失或地址变化时关闭。每个进程最多一个上传服务，脚本停止、回调退出或异常均释放监听、连接、网络回调和未完成文件。
+`andjs.httpServer.upload(options)` 通过 `PlatformApi.openHttpServer` 创建 `AndroidHttpServer`。只选择具备 NOT_VPN 能力且不含 VPN 传输标记的 Wi-Fi 网络，监听其 IPv4 地址，保留其他网络路由；Wi-Fi 丢失或地址变化时关闭。每个进程最多一个上传服务，脚本停止、回调退出或异常均释放监听、连接、网络回调和未完成文件。
 
 解释器线程负责 `onStart`、`onText` 和 `onProgress` 回调，不跨线程访问 Rhino 上下文。监听使用一个阻塞线程，请求使用最多两个空闲可回收线程，不建立请求排队线程池。文字事件队列最多八项，上传同时只允许一个。空闲时解释器阻塞等待事件；上传进度只保存最新字节计数，按一秒截止时间生成快照，完成和失败立即通知。文件接收循环复用 16 KiB 缓冲区，无主动限速或传输延时。
 
@@ -101,7 +101,7 @@ LocationApi 使用本机系统定位源，校验前台权限、缓存年龄和�
 
 ### 临时 HTTP 群聊
 
-`httpServer.chat` 复用 AndroidHttpServer 的 Wi-Fi 绑定、连接池和停止清理。HttpChatStore 将消息 JSON 和原始附件写入 noBackupFilesDir/http-chat 的本次 UUID 目录；消息递增 ID 用于分页增量轮询，每页 50 条，网页串行每秒拉取。附件使用 16 KiB 缓冲区接收与下载，不转换 Base64，不对图片完整解码。图片通过 bounds 检查格式后保留原始内容。
+`httpServer.chat` 复用 AndroidHttpServer 的 Wi-Fi 绑定、连接池和停止清理。上传和群聊服务运行期间通过 `requestNetwork(TRANSPORT_WIFI)` 主动申请保留非 VPN 的 Wi-Fi，不要求互联网连接；关闭或启动失败时注销请求，不增加保活轮询或额外线程。HttpChatStore 将消息 JSON 和原始附件写入 noBackupFilesDir/http-chat 的本次 UUID 目录；消息递增 ID 用于分页增量轮询，每页 50 条，网页串行每秒拉取。附件使用 16 KiB 缓冲区接收与下载，不转换 Base64，不对图片完整解码。图片通过 bounds 检查格式后保留原始内容。
 
 /join 校验 token 后发放随机 HttpOnly、SameSite=Strict Cookie，服务端维护 Cookie 到发送者 ID 的映射；重复加入恢复 ID。/messages 和 /attachment 均验证 Cookie，退出撤销访问权但保留本次 ID 映射。系统消息通过回调 server.send 写入同一存储，不放入 onMessage 事件队列。
 

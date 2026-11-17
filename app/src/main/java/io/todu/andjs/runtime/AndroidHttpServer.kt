@@ -38,7 +38,12 @@ internal class AndroidHttpServer private constructor(
             var server:AndroidHttpServer?=null
             try {
                 val manager=context.getSystemService(ConnectivityManager::class.java)
-                val wifi=manager.allNetworks.firstOrNull {manager.getNetworkCapabilities(it)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)==true}
+                val wifi=manager.allNetworks.firstOrNull {
+                    val capabilities=manager.getNetworkCapabilities(it)
+                    capabilities!=null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+                        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN) &&
+                        !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+                }
                     ?: error("请先连接 Wi-Fi")
                 val address=manager.getLinkProperties(wifi)?.linkAddresses?.map {it.address}?.filterIsInstance<Inet4Address>()?.firstOrNull {!it.isLoopbackAddress && !it.isLinkLocalAddress}
                     ?: error("Wi-Fi 尚未取得 IPv4 地址")
@@ -93,7 +98,13 @@ internal class AndroidHttpServer private constructor(
         listener.reuseAddress=true
         try {listener.bind(InetSocketAddress(address,options.port),4)} catch(e:java.net.BindException) {error("端口 ${options.port} 已被占用或无法监听")}
         synchronized(lifecycleLock) {
-            manager.registerNetworkCallback(NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build(),networkCallback)
+            // An active request keeps Wi-Fi needed while serving, including on Wear OS.
+            // Do not require INTERNET: a local-only Wi-Fi network is sufficient.
+            // close() releases this request through unregisterNetworkCallback.
+            manager.requestNetwork(NetworkRequest.Builder()
+                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+                .build(),networkCallback)
             registered=true
         }
         if(manager.getLinkProperties(network)?.linkAddresses?.none {it.address==address}!=false) fail("Wi-Fi 已断开")
