@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart();handler.removeCallbacks(exitTask)
         lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {io.todu.andjs.runtime.HttpUploadFile.clean(this@MainActivity)}
             try {io.todu.andjs.runtime.ScriptCache(java.io.File(filesDir,"script-cache")).clean();io.todu.andjs.runtime.ScriptExtras.cleanShares(this@MainActivity)} catch(_:Exception) {}
         }
     }

@@ -106,3 +106,7 @@ LocationApi 使用本机系统定位源，校验前台权限、缓存年龄和�
 /join 校验 token 后发放随机 HttpOnly、SameSite=Strict Cookie，服务端维护 Cookie 到发送者 ID 的映射；重复加入恢复 ID。/messages 和 /attachment 均验证 Cookie，退出撤销访问权但保留本次 ID 映射。系统消息通过回调 server.send 写入同一存储，不放入 onMessage 事件队列。
 
 关闭时先断开所有连接，最后一个工作线程结束后清理会话目录再释放进程名额，避免写入与清理竞争。应用启动及下一次新聊天创建前清理残留，异常结束的数据不会恢复。
+
+### 未完成上传恢复
+
+HttpUploadFile 在应用启动、MainActivity 的自动缓存维护和 AppCache.clear 中清理未完成上传。Android 10 及以上只匹配本包拥有、位于 Download/ 且 IS_PENDING=1 的 MediaStore 条目，删除时再次使用相同条件；成功发布的条目不匹配。Android 8–9 先持久化私有 UUID 记录，再写 Download/ 下对应的隐藏 .part 文件，完成后移到正式文件名；恢复只删除记录对应的临时路径，不接触正式文件。旧版本 Android 8–9 未记录的文件无法可靠判断完成状态，不自动删除。进程级锁协调创建、提交与清理，活动上传从清理中排除；失败的清理可在下次维护时重试。

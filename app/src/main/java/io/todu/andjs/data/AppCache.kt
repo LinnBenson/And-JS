@@ -48,6 +48,7 @@ object AppCache {
             check(withTimeoutOrNull(5000) {running.keys.forEach {it.await()};true}==true) {"任务尚未结束，请稍后再清理"}
             withContext(Dispatchers.IO) {
                 val app=context.applicationContext
+                io.todu.andjs.runtime.HttpUploadFile.clean(app)
                 // User files, scripts, preferences, notes and sync snapshots are deliberately excluded.
                 val roots=listOfNotNull(app.cacheDir,app.codeCacheDir)+app.externalCacheDirs.filterNotNull()
                 roots.distinctBy {it.absolutePath}.forEach {clearDirectory(it)}
