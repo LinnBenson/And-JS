@@ -58,6 +58,7 @@ class WatchStore(directory:File) {
             check(old.scripts.any {it.item.id==scriptId}) {"脚本已移除"}
             old.copy(scripts=old.scripts.map {if(it.item.id==scriptId) it.copy(item=it.item.copy(parameters=values)) else it})
         }
+        if(updated==old) return
         save(updated,origin,sequence,hash)
     }
 }

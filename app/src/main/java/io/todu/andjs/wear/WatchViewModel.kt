@@ -7,6 +7,9 @@ import io.todu.andjs.domain.ScriptDocument
 import io.todu.andjs.ui.HomeViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.cancelAndJoin
+import java.util.concurrent.atomic.AtomicReference
 
 class WatchViewModel(private val store:WatchStore,private val runner:ScriptRunner):ViewModel() {
     val snapshot=store.state
@@ -36,8 +39,16 @@ class WatchViewModel(private val store:WatchStore,private val runner:ScriptRunne
         control=c;execution.value=HomeViewModel.Execution(item.name,icon=item.icon,color=item.color)
         val globals=input.second
         viewModelScope.launch {
-            val result=try {runner.run(current.source,item.parameters,globals,c) {logs->execution.value=execution.value?.copy(logs=logs)}}
+            val pending=AtomicReference<List<LogEntry>?>(null)
+            val updates=launch {
+                while(true) {
+                    pending.getAndSet(null)?.let {logs->execution.value=execution.value?.copy(logs=logs)}
+                    delay(50)
+                }
+            }
+            val result=try {runner.run(current.source,item.parameters,globals,c) {logs->pending.set(logs)}}
                 catch(e:Exception) {RunResult("",emptyList(),e.message ?: "执行失败")}
+                finally {updates.cancelAndJoin()}
             execution.value=if(background || c.closeRequested.get() || cacheEpoch!=io.todu.andjs.data.AppCache.epoch.value) null else HomeViewModel.Execution(item.name,false,result,item.icon,item.color,result.logs);control=null
         }
     }

@@ -38,9 +38,22 @@ private class RunAborted(val cancelled:Boolean): Error()
 
 /** Each invocation has an independent safe scope; Java reflection and host objects are not exposed. */
 class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System.getProperty("java.io.tmpdir"),"andjs-network"),private val platform:PlatformApi?=null,private val lowMemory:Boolean=false) : ScriptRunner {
+    // Cache only small watch scripts; scopes and API bindings remain per-run.
+    private val compiled=object:LinkedHashMap<String,org.mozilla.javascript.Script>(4,0.75f,true) {
+        override fun removeEldestEntry(eldest:MutableMap.MutableEntry<String,org.mozilla.javascript.Script>?):Boolean = size>4
+    }
+    private var compiledEpoch=-1L
+    private fun program(cx:Context,code:String):org.mozilla.javascript.Script {
+        if(!lowMemory || code.length>16_000) return cx.compileString(code,"main.js",1,null)
+        return synchronized(compiled) {
+            val epoch=io.todu.andjs.data.AppCache.epoch.value
+            if(compiledEpoch!=epoch) {compiled.clear();compiledEpoch=epoch}
+            compiled.getOrPut(code) {cx.compileString(code,"main.js",1,null)}
+        }
+    }
     override suspend fun run(source:String, parameters:List<ScriptParameter>, globals:List<ScriptParameter>, control:RunControl, onLogs:(List<LogEntry>)->Unit):RunResult = withContext(Dispatchers.Default) {
         val started=System.nanoTime()
-        val maxLogs=if(lowMemory) 40 else 200
+        val maxLogs=200
         val maxOutput=if(lowMemory) 8000 else 32000
         val heap=Runtime.getRuntime()
         val baseline=heap.totalMemory()-heap.freeMemory()
@@ -982,14 +995,14 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                         .withZone(java.time.ZoneId.systemDefault()).format(instant)
                 }
                 function(util,"uuid") {UUID.randomUUID().toString()}
-                val random=SecureRandom()
+                val random by lazy {SecureRandom()}
                 function(util,"randomInt") {args->
                     val min=Context.toNumber(args.getOrNull(0));val max=Context.toNumber(args.getOrNull(1))
                     require(min.isFinite() && max.isFinite() && min%1==0.0 && max%1==0.0 && min>=-1_000_000_000 && max<=1_000_000_000 && max>=min) {"范围须为 -10亿到10亿之间的整数，且最大值不小于最小值"}
                     min.toInt()+random.nextInt((max-min+1).toInt())
                 }
                 checkRun()
-                try {cx.evaluateString(scope,code,"main.js",1,null);checkRun()} catch(_:ScriptExited) {}
+                try {program(cx,code).exec(cx,scope);checkRun()} catch(_:ScriptExited) {}
                 return returned
                 } finally {
                     val closeStart=System.nanoTime()
