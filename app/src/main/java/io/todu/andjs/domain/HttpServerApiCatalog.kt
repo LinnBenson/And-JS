@@ -6,7 +6,7 @@ object HttpServerApiCatalog {
         "启动局域网网页，接收文字、图片日志并上传文件到本机 Download/。",
         listOf(
             ApiArgument("options","object，可选","省略时使用默认配置；不打印启动信息，收到的文字与上传进度仍使用默认日志。"),
-            ApiArgument("options.listen","string | null，可选","指定本机 IPv4 监听地址；0.0.0.0 监听所有 IPv4 接口。省略或 null 沿用自动选择逻辑。显式指定时不自动检查 Wi-Fi 或热点地址变化；停止脚本仍会关闭服务。server.url 使用监听地址，0.0.0.0 需替换为设备实际 IP 后访问。"),
+            ApiArgument("options.listen","string | null，可选","指定本机 IPv4 监听地址；支持 10.*、192.168.* 等末尾 * 前缀，启动时选择已启用网卡的第一个匹配 IPv4，未匹配时报错，运行中不自动切换。0.0.0.0 监听所有 IPv4 接口。省略或 null 沿用自动选择逻辑。显式指定时不自动检查 Wi-Fi 或热点地址变化；停止脚本仍会关闭服务。server.url 使用监听地址，0.0.0.0 需替换为设备实际 IP 后访问。"),
             ApiArgument("options.port","number，可选","端口，默认 8080；1024–65535 的整数，被占用时抛错。"),
             ApiArgument("options.name","string，可选","网页名称，默认 And JS；标题、页脚和浏览器标题同步显示。空白名称使用默认值。"),
             ApiArgument("options.token","string，可选","访问码，省略或空字符串表示无密码，网页留空即可；也可指定 1–64 个非空格 ASCII 字符。在 onStart 回调中取得地址及访问码。"),

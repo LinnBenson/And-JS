@@ -8,7 +8,6 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import java.io.BufferedInputStream
 import java.io.InputStream
-import java.net.InetAddress
 import java.net.Inet4Address
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -47,7 +46,7 @@ internal class AndroidHttpServer private constructor(
                         !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
                 }
                 val address=if(options.listen!=null) {
-                    InetAddress.getByName(options.listen) as Inet4Address
+                    HttpListenAddress.resolve(options.listen)
                 } else if(hotspot) {
                     val deadline=System.nanoTime()+3_000_000_000L
                     var addresses=AndroidHotspots.addresses(context)

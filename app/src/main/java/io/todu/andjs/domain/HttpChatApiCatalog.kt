@@ -6,7 +6,7 @@ object HttpChatApiCatalog {
         "启动临时局域网公共群聊，支持文字、图片和文件。",
         listOf(
             ApiArgument("options","object，可选","省略时使用默认配置。不自动输出启动日志或聊天消息。"),
-            ApiArgument("options.listen","string | null，可选","指定本机 IPv4 监听地址；0.0.0.0 监听所有 IPv4 接口。省略或 null 沿用自动选择逻辑。显式指定时不自动检查 Wi-Fi 或热点地址变化；停止脚本仍会关闭服务。server.url 使用监听地址，0.0.0.0 需替换为设备实际 IP 后访问。"),
+            ApiArgument("options.listen","string | null，可选","指定本机 IPv4 监听地址；支持 10.*、192.168.* 等末尾 * 前缀，启动时选择已启用网卡的第一个匹配 IPv4，未匹配时报错，运行中不自动切换。0.0.0.0 监听所有 IPv4 接口。省略或 null 沿用自动选择逻辑。显式指定时不自动检查 Wi-Fi 或热点地址变化；停止脚本仍会关闭服务。server.url 使用监听地址，0.0.0.0 需替换为设备实际 IP 后访问。"),
             ApiArgument("options.port","number，可选","默认 8080，1024–65535 的整数。"),
             ApiArgument("options.name","string，可选","网页名称，默认 And JS；登录页、聊天页和浏览器标题同步显示。"),
             ApiArgument("options.token","string，可选","默认空密码，直接进入聊天；设置密码时先显示访问码入口。非空时须匹配 1–64 个非空格 ASCII 字符。记录、图片及下载均须验证。"),

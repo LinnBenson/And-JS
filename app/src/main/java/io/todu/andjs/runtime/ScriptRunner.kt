@@ -780,7 +780,7 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                     val listenOption=option("listen")
                     require(listenOption==null || listenOption is CharSequence) {"listen 必须为 IPv4 字符串或 null"}
                     val listen=listenOption?.toString()
-                    require(listen==null || (listen.split('.').size==4 && listen.split('.').all {it.isNotEmpty() && it.length<=3 && it.all {c->c in '0'..'9'} && it.toInt() in 0..255})) {"listen 必须为有效 IPv4 地址"}
+                    require(listen==null || HttpListenAddress.isValid(listen)) {"listen 必须为 IPv4 地址或末尾带 * 的前缀，如 10.*"}
                     val port=integer("port",8080,1024,65535)
                     val size=integer("maxFileSizeMB",100,1,1024)
                     val imageSize=if(chatting) integer("maxImageSizeMB",2,1,100) else 2
