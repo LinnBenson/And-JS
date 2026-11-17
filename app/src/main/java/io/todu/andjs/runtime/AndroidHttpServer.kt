@@ -8,6 +8,7 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import java.io.BufferedInputStream
 import java.io.InputStream
+import java.net.InetAddress
 import java.net.Inet4Address
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -39,13 +40,15 @@ internal class AndroidHttpServer private constructor(
             try {
                 val manager=context.getSystemService(ConnectivityManager::class.java)
                 val hotspot=AndroidHotspots.hasActive()
-                val wifi=if(hotspot) null else manager.allNetworks.firstOrNull {
+                val wifi=if(hotspot || options.listen!=null) null else manager.allNetworks.firstOrNull {
                     val capabilities=manager.getNetworkCapabilities(it)
                     capabilities!=null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
                         capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN) &&
                         !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
                 }
-                val address=if(hotspot) {
+                val address=if(options.listen!=null) {
+                    InetAddress.getByName(options.listen) as Inet4Address
+                } else if(hotspot) {
                     val deadline=System.nanoTime()+3_000_000_000L
                     var addresses=AndroidHotspots.addresses(context)
                     while(addresses.isEmpty() && System.nanoTime()<deadline && !control.stopped.get()) {Thread.sleep(100);addresses=AndroidHotspots.addresses(context)}
@@ -124,7 +127,7 @@ internal class AndroidHttpServer private constructor(
         acceptThread=Thread({
             try {
                 while(!closed.get()) {
-                    if(network==null && address !in AndroidHotspots.addresses(context)) {fail("热点已停止或地址已变化");break}
+                    if(options.listen==null && network==null && address !in AndroidHotspots.addresses(context)) {fail("热点已停止或地址已变化");break}
                     val socket=try {listener.accept()} catch(_:SocketTimeoutException) {continue}
                     sockets.add(socket)
                     if(closed.get()) {sockets.remove(socket);socket.close();break}

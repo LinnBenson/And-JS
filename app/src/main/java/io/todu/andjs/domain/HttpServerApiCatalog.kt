@@ -6,6 +6,7 @@ object HttpServerApiCatalog {
         "启动局域网网页，接收文字、图片日志并上传文件到本机 Download/。",
         listOf(
             ApiArgument("options","object，可选","省略时使用默认配置；不打印启动信息，收到的文字与上传进度仍使用默认日志。"),
+            ApiArgument("options.listen","string | null，可选","指定本机 IPv4 监听地址；0.0.0.0 监听所有 IPv4 接口。省略或 null 沿用自动选择逻辑。显式指定时不自动检查 Wi-Fi 或热点地址变化；停止脚本仍会关闭服务。server.url 使用监听地址，0.0.0.0 需替换为设备实际 IP 后访问。"),
             ApiArgument("options.port","number，可选","端口，默认 8080；1024–65535 的整数，被占用时抛错。"),
             ApiArgument("options.name","string，可选","网页名称，默认 And JS；标题、页脚和浏览器标题同步显示。空白名称使用默认值。"),
             ApiArgument("options.token","string，可选","访问码，省略或空字符串表示无密码，网页留空即可；也可指定 1–64 个非空格 ASCII 字符。在 onStart 回调中取得地址及访问码。"),
@@ -16,7 +17,7 @@ object HttpServerApiCatalog {
             ApiArgument("options.onError","function(error)，可选","启动、服务、业务回调异常或已开始上传的文件失败时通知。fatal=false 的上传失败不关闭服务；fatal=true 在通知后仍抛错。请求校验拒绝只返回网页错误，参数校验失败直接抛错。"),
             ApiArgument("options.onClose","function(info)，可选","启动尝试结束后调用一次，包括启动失败、停止、exit()、服务异常。先关闭资源，再调用；限 250 毫秒，仅支持普通 JS 运算、console.log 及 log.info/warn/error，不可启动新任务。关闭窗口或切入后台后日志可能不可见。")
         ),
-        "持续等待；停止脚本、关闭窗口或进入后台时结束服务，Wi-Fi 断开或 IPv4 地址变化时抛错并关闭。回调可用 exit() 结束脚本。每台设备最多一个服务，同时上传一个文件、处理两个连接。图像页每次接收一张不超过 2 MB 的图片，调用 andjs.log.img 显示，不保存到 Download/，沿用图片日志的尺寸、数量和总量限制。文件流式写入，不覆盖重名文件，失败或停止清理未完成文件；连续 15 秒未收到数据或单次上传超过 30 分钟时中止。",
+        "持续等待；停止脚本、关闭窗口或进入后台时结束服务，自动选择地址时，Wi-Fi 断开或 IPv4 地址变化会抛错并关闭。回调可用 exit() 结束脚本。每台设备最多一个服务，同时上传一个文件、处理两个连接。图像页每次接收一张不超过 2 MB 的图片，调用 andjs.log.img 显示，不保存到 Download/，沿用图片日志的尺寸、数量和总量限制。文件流式写入，不覆盖重名文件，失败或停止清理未完成文件；连续 15 秒未收到数据或单次上传超过 30 分钟时中止。",
         """andjs.httpServer.upload({
   port: 8080,
   maxFileSizeMB: 100,
@@ -43,7 +44,7 @@ object HttpServerApiCatalog {
 });""",
         "手机、手表 · 需连接有 IPv4 地址的 Wi-Fi",
         fields=listOf(
-            ApiArgument("server.url","string","Wi-Fi IPv4 网页地址，包含端口。"),
+            ApiArgument("server.url","string","监听地址生成的 URL，包含端口；0.0.0.0 需替换为设备实际 IP。"),
             ApiArgument("server.port","number","实际监听端口。"),
             ApiArgument("server.name","string","本次上传网页名称。"),
             ApiArgument("server.token","string","网页访问码。是否输出由脚本决定。"),

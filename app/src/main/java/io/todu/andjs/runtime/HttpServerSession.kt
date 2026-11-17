@@ -3,7 +3,7 @@ package io.todu.andjs.runtime
 import java.io.Closeable
 import java.util.concurrent.CompletableFuture
 
-internal data class HttpServerOptions(val port:Int=8080,val token:String,val maxFileSizeMB:Int=100,val chat:Boolean=false,val maxImageSizeMB:Int=2,val name:String="And JS",val editor:((String,org.json.JSONObject?)->org.json.JSONObject)?=null)
+internal data class HttpServerOptions(val port:Int=8080,val token:String,val maxFileSizeMB:Int=100,val chat:Boolean=false,val maxImageSizeMB:Int=2,val name:String="And JS",val listen:String?=null,val editor:((String,org.json.JSONObject?)->org.json.JSONObject)?=null)
 data class UploadProgress(val id:String,val name:String,val receivedBytes:Long,val totalBytes:Long,val status:String="uploading",val error:String?=null,val kind:String="file",val installUri:String?=null) {
     fun values():Map<String,Any?> = mapOf("id" to id,"name" to name,"receivedBytes" to receivedBytes,"totalBytes" to totalBytes,
         "percent" to if(status=="completed") 100 else if(totalBytes==0L) 0 else (receivedBytes*100/totalBytes).toInt().coerceAtMost(99),"status" to status,"error" to error,"kind" to kind)

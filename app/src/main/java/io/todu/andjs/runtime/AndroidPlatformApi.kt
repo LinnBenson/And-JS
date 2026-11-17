@@ -21,8 +21,8 @@ import java.util.Base64
 class AndroidPlatformApi(private val context:Context):PlatformApi {
     override fun openHotspot(options:HotspotOptions,control:RunControl):HotspotSession = AndroidHotspots.start(context.applicationContext,options,control)
     override fun hotspot(method:String):Map<String,Any?> = AndroidHotspots.call(context.applicationContext,method)
-    override fun openHttpServer(port:Int,token:String,maxFileSizeMB:Int,control:RunControl,name:String):HttpServerSession = AndroidHttpServer.open(context.applicationContext,HttpServerOptions(port,token,maxFileSizeMB,name=name),control)
-    override fun openHttpChat(port:Int,token:String,maxFileSizeMB:Int,maxImageSizeMB:Int,control:RunControl,name:String):HttpServerSession = AndroidHttpServer.open(context.applicationContext,HttpServerOptions(port,token,maxFileSizeMB,true,maxImageSizeMB,name),control)
+    override fun openHttpServer(port:Int,token:String,maxFileSizeMB:Int,control:RunControl,name:String,listen:String?):HttpServerSession = AndroidHttpServer.open(context.applicationContext,HttpServerOptions(port,token,maxFileSizeMB,name=name,listen=listen),control)
+    override fun openHttpChat(port:Int,token:String,maxFileSizeMB:Int,maxImageSizeMB:Int,control:RunControl,name:String,listen:String?):HttpServerSession = AndroidHttpServer.open(context.applicationContext,HttpServerOptions(port,token,maxFileSizeMB,true,maxImageSizeMB,name,listen=listen),control)
     override fun openDeviceSession(control:RunControl):DeviceSession=AndroidDeviceSession(context.applicationContext,control)
     override fun openBle(control:RunControl):BleSession=AndroidBleSession(context.applicationContext,control)
     override fun call(namespace:String,method:String,args:JSONArray,control:RunControl):Any? =
