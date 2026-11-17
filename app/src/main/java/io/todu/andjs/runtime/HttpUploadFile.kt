@@ -51,6 +51,9 @@ internal class HttpUploadFile(private val context:Context,requestedName:String):
     private var uri:Uri?=null
     private var file:File?=null
     private var committed=false
+    private var savedFile:File?=null
+    val installUri:String? get()=if(!committed || !name.endsWith(".apk",ignoreCase=true)) null else
+        (uri ?: savedFile?.let {androidx.core.content.FileProvider.getUriForFile(context,context.packageName+".scriptfiles",it)})?.toString()
     private var stream:OutputStream?=null
     var name=requestedName
         private set
@@ -101,6 +104,7 @@ internal class HttpUploadFile(private val context:Context,requestedName:String):
                 try {
                     java.nio.file.Files.move(pending.toPath(),destination.toPath())
                     name=candidateName
+                    savedFile=destination
                     break
                 } catch(e:java.nio.file.FileAlreadyExistsException) {
                     check(++suffix<=1000) {"同名文件过多"}

@@ -27,7 +27,7 @@ class RunControl(val persistVariables:((String,List<ScriptParameter>)->Unit)?=nu
         return {activeStops.remove(key);Unit}
     }
 }
-data class LogEntry(val level:String,val text:String,val imageRatio:Float=1f,val imageWidth:Int=240,val imageWidthPercent:Float?=null)
+data class LogEntry(val level:String,val text:String,val imageRatio:Float=1f,val imageWidth:Int=240,val imageWidthPercent:Float?=null,val installUri:String?=null)
 data class RunResult(val output:String, val logs:List<LogEntry>, val error:String?=null, val stopped:Boolean=false, val elapsedMs:Long=0)
 interface ScriptRunner {
     suspend fun run(source:String, parameters:List<ScriptParameter>, globals:List<ScriptParameter>, control:RunControl, onLogs:(List<LogEntry>)->Unit = {}):RunResult
@@ -815,6 +815,7 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                         try {callback(onError,js(details))} catch(e:Exception) {errorHandlerFailed=true;throw e}
                     }
                     fun progress(value:UploadProgress) {
+                        try {
                         if(onProgress!=null) callback(onProgress,js(value.values()))
                         else if(!chatting) {
                             val message=when(value.status) {
@@ -827,6 +828,10 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                         if(value.status=="failed") reportError(mapOf(
                             "code" to "UPLOAD_FAILED","message" to value.error,"phase" to "upload","fatal" to false,
                             "id" to value.id,"name" to value.name))
+                        } finally {
+                            if(!chatting && value.status=="completed" && value.kind=="file" && value.installUri!=null && value.name.endsWith(".apk",ignoreCase=true))
+                                writeLog(LogEntry("apk",value.name,installUri=value.installUri),null)
+                        }
                     }
                     try {
                         checkRun()

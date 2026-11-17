@@ -166,7 +166,7 @@ private val watchContentShape=RoundedCornerShape(8.dp)
                         else Glyph(if(current.result?.error!=null || current.result?.output=="执行失败") "x" else "check",if(current.result?.error!=null || current.result?.output=="执行失败") Color(0xFFE4AEAA) else watchAccent,Modifier.size(32.dp))
                     }
                     item {Text(if(current.running) current.name else if(current.result?.stopped==true) "已停止" else if(current.result?.error!=null || current.result?.output=="执行失败") "执行失败" else "执行完成",fontSize=16.sp,maxLines=2)}
-                    itemsIndexed(current.logs) {_,line->if(line.level=="img") ImageLogItem(line) {previewImage=it} else WatchTextCard(line.text,when(line.level) {"warn"->Color(0xFFD5C197);"error"->Color(0xFFE4AEAA);else->Color.White})}
+                    itemsIndexed(current.logs) {_,line->if(line.installUri!=null) ApkLogItem(line) else if(line.level=="img") ImageLogItem(line) {previewImage=it} else WatchTextCard(line.text,when(line.level) {"warn"->Color(0xFFD5C197);"error"->Color(0xFFE4AEAA);else->Color.White})}
                     if(text.isNotEmpty()) item {WatchTextCard(text)}
                 }
                 Row(Modifier.fillMaxWidth().padding(bottom=4.dp),horizontalArrangement=Arrangement.Center,verticalAlignment=Alignment.CenterVertically) {

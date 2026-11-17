@@ -413,7 +413,7 @@ internal class AndroidHttpServer private constructor(
                 }
                 if(closed.get() || control.stopped.get()) throw java.io.IOException("上传已停止")
                 file.commit()
-                state=state.copy(name=file.name,receivedBytes=size,status="completed")
+                state=state.copy(name=file.name,receivedBytes=size,status="completed",installUri=file.installUri)
             }
         } catch(e:Exception) {
             state=state.copy(receivedBytes=activeProgress.get()?.received ?: 0,status="failed",error=when(e) {is SocketTimeoutException->"上传超时";else->e.message ?: "文件保存失败"})

@@ -61,8 +61,8 @@ import androidx.compose.ui.window.DialogProperties
                 if(hasLogs) {
                     LazyColumn(modifier=Modifier.fillMaxWidth().then(if(hasResult) Modifier.heightIn(max=height*.32f) else Modifier.weight(1f)),state=logState,verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         itemsIndexed(run.logs,key={index,_->index}) {_,line->
-                            Surface(modifier=Modifier.fillMaxWidth().then(if(line.level!="img") Modifier.clickable(onClickLabel="复制日志",onClick=copyTextAction(line.text,"日志")) else Modifier),shape=RoundedCornerShape(10.dp),color=colors.surfaceContainerLow) {
-                                if(line.level=="img") ImageLogItem(line) {previewImage=it} else SelectionContainer {Text(line.text,color=when(line.level) {"warn"->warningColor;"error"->colors.error;else->colors.onSurface},modifier=Modifier.padding(horizontal=12.dp,vertical=10.dp),fontSize=12.sp)}
+                            Surface(modifier=Modifier.fillMaxWidth().then(if(line.level!="img" && line.installUri==null) Modifier.clickable(onClickLabel="复制日志",onClick=copyTextAction(line.text,"日志")) else Modifier),shape=RoundedCornerShape(10.dp),color=colors.surfaceContainerLow) {
+                                if(line.installUri!=null) ApkLogItem(line) else if(line.level=="img") ImageLogItem(line) {previewImage=it} else SelectionContainer {Text(line.text,color=when(line.level) {"warn"->warningColor;"error"->colors.error;else->colors.onSurface},modifier=Modifier.padding(horizontal=12.dp,vertical=10.dp),fontSize=12.sp)}
                             }
                         }
                     }
