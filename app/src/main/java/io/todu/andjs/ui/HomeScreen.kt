@@ -63,6 +63,8 @@ import io.todu.andjs.ui.theme.*
     val managingCategories by model.managingCategories.collectAsStateWithLifecycle()
     LaunchedEffect(categories) {if(category!="全部" && categories.none {it.id==category}) category="全部"}
     LaunchedEffect(page) { if(page==1 && globals==null) model.openGlobals() }
+    var lanEditor by rememberSaveable {mutableStateOf(false)}
+    if(lanEditor) {LanEditorScreen(model) {lanEditor=false};return}
     var watchPreview by rememberSaveable {mutableStateOf(false)}
     if(watchPreview) {WatchPreviewScreen(model) {watchPreview=false};return}
     var permissionsPage by rememberSaveable {mutableStateOf(false)}
@@ -146,6 +148,7 @@ import io.todu.andjs.ui.theme.*
                     SettingRow("接口声明",onClick={apiPage=true})
                     SettingRow("权限授权",onClick={permissionsPage=true})
                     SettingRow("手表预览",onClick={watchPreview=true})
+                    SettingRow("局域网编辑",onClick={lanEditor=true})
                     SettingRow("外观",appearance.mode.title,onClick={chooseAppearance=true})
                     SettingRow("清除缓存",if(clearingCache) "清理中…" else null,onClick={
                         if(!clearingCache) scope.launch {

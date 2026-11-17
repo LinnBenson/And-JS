@@ -9,6 +9,7 @@ import java.util.UUID
 
 data class HomeState(val items: List<Script> = emptyList(), val loading: Boolean = true, val error: String? = null)
 class HomeViewModel(private val repository: ScriptRepository, private val runner: ScriptRunner, private val globalRepository: io.todu.andjs.data.GlobalRepository, private val categoryRepository: io.todu.andjs.data.CategoryRepository, private val watchSync:io.todu.andjs.wear.WatchSync,private val onRunStarted:()->Unit={}) : ViewModel() {
+    internal fun lanEditorHandler() = LanScriptEditor(repository,categories.value) {refresh()}
     private val mutable = MutableStateFlow(HomeState())
     val state = mutable.asStateFlow()
     var editor = MutableStateFlow<ScriptDocument?>(null); private set

@@ -87,7 +87,7 @@ internal class AndroidHttpServer private constructor(
     override val progress:UploadProgress? get()=activeProgress.get()?.snapshot()
     override val token:String get()=options.token
     override val url:String get()="http://${address.hostAddress}:${options.port}"
-    private val page by lazy {context.assets.open(if(options.chat) "http-chat.html" else "http-server.html").bufferedReader().use {it.readText()}.replace("__MAX_FILE_MB__",options.maxFileSizeMB.toString()).replace("__MAX_IMAGE_MB__",options.maxImageSizeMB.toString()).replace("__REQUIRES_TOKEN__",options.token.isNotEmpty().toString()).replace("__SERVER_NAME__",android.text.TextUtils.htmlEncode(options.name)).toByteArray(Charsets.UTF_8)}
+    private val page by lazy {context.assets.open(if(options.editor!=null) "http-editor.html" else if(options.chat) "http-chat.html" else "http-server.html").bufferedReader().use {it.readText()}.replace("__MAX_FILE_MB__",options.maxFileSizeMB.toString()).replace("__MAX_IMAGE_MB__",options.maxImageSizeMB.toString()).replace("__REQUIRES_TOKEN__",options.token.isNotEmpty().toString()).replace("__SERVER_NAME__",android.text.TextUtils.htmlEncode(options.name)).toByteArray(Charsets.UTF_8)}
     private val networkCallback=object:ConnectivityManager.NetworkCallback() {
         override fun onLost(n:Network) {if(n==network) fail("Wi-Fi 已断开，HTTP 服务已关闭")}
         override fun onLinkPropertiesChanged(n:Network,p:LinkProperties) {
@@ -192,6 +192,7 @@ internal class AndroidHttpServer private constructor(
             }
             if(headers.containsKey("transfer-encoding")) reject(400,"不支持分块上传")
             if(method=="GET" && target=="/") {respond(socket,200,page,"text/html; charset=utf-8");return}
+            if(options.editor!=null) {serveEditor(socket,input,method,target,headers);return}
             if(chat!=null) {serveChat(socket,input,method,target,headers);return}
             if(method!="POST" || (target!="/auth" && target!="/text" && !target.startsWith("/upload?name=") && !target.startsWith("/image?name="))) reject(404,"找不到页面")
             if(headers["origin"]?.let {it!="http://${headers["host"]}"}==true) reject(403,"请从服务网页发送")
@@ -227,6 +228,28 @@ internal class AndroidHttpServer private constructor(
         } catch(e:RequestError) {runCatching {json(socket,e.status,e.message)}}
         catch(_:SocketTimeoutException) {runCatching {json(socket,408,"连接超时，请重试")}}
         catch(_:Exception) {if(!closed.get()) runCatching {json(socket,500,"接收失败，请重试")}}
+    }
+    private fun serveEditor(socket:Socket,input:InputStream,method:String,target:String,headers:Map<String,String>) {
+        if(headers["origin"]?.let {it!="http://${headers["host"]}"}==true) reject(403,"请从编辑网页发送")
+        if(!MessageDigest.isEqual(headers["x-andjs-token"].orEmpty().toByteArray(Charsets.UTF_8),token.toByteArray(Charsets.UTF_8))) reject(401,"访问码不正确")
+        if(method=="POST" && target=="/auth") {json(socket,200,"已连接");return}
+        if(!((method=="GET" && target=="/scripts") || (method=="POST" && target=="/save"))) reject(404,"找不到页面")
+        val body=if(method=="POST") {
+            val size=headers["content-length"]?.toIntOrNull() ?: reject(411,"缺少文件大小")
+            if(size !in 1..2097152) reject(413,"脚本及参数最大 2 MB")
+            socket.soTimeout=15000
+            val bytes=ByteArray(size);var offset=0
+            val deadline=System.nanoTime()+30_000_000_000L
+            while(offset<size) {
+                if(System.nanoTime()>deadline) reject(408,"保存超时")
+                val n=input.read(bytes,offset,size-offset);if(n<0) reject(400,"内容不完整");offset+=n
+            }
+            try {JSONObject(Charsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(bytes)).toString())} catch(_:Exception) {reject(400,"内容格式错误")}
+        } else null
+        val result=try {checkNotNull(options.editor).invoke(target,body)}
+        catch(e:IllegalArgumentException) {reject(400,e.message ?: "参数错误")}
+        catch(e:IllegalStateException) {reject(409,e.message ?: "脚本已变化，请刷新")}
+        respond(socket,200,result.toString().toByteArray(Charsets.UTF_8))
     }
     private fun serveChat(socket:Socket,input:InputStream,method:String,target:String,headers:Map<String,String>) {
         val store=checkNotNull(chat)

@@ -5,12 +5,24 @@ import android.util.AtomicFile
 import io.todu.andjs.domain.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.sync.withLock
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
 import org.json.JSONObject
 import org.json.JSONArray
 import java.io.File
 
 /** Each atomic document is authoritative; main.js is an exported executable mirror. */
 class FileScriptRepository(private val context: Context) : ScriptRepository {
+    private class TransactionContext:AbstractCoroutineContextElement(Key) {
+        companion object Key:CoroutineContext.Key<TransactionContext>
+    }
+    companion object {private val transactionMutex=kotlinx.coroutines.sync.Mutex()}
+    override suspend fun <T> transaction(block:suspend ()->T):T =
+        if(currentCoroutineContext()[TransactionContext]!=null) block()
+        else transactionMutex.withLock {withContext(TransactionContext()) {block()}}
+    private suspend fun <T> io(block:suspend ()->T):T = transaction {withContext(Dispatchers.IO) {block()}}
     private val seedLock = kotlinx.coroutines.sync.Mutex()
     private val preferences = context.getSharedPreferences("examples", Context.MODE_PRIVATE)
     private val root = File(context.filesDir, "scripts").apply { mkdirs() }
@@ -24,7 +36,7 @@ class FileScriptRepository(private val context: Context) : ScriptRepository {
         try { stream.write(text.toByteArray(Charsets.UTF_8)); atomic.finishWrite(stream) }
         catch (e: Exception) { atomic.failWrite(stream); throw e }
     }
-    override suspend fun load(): List<Script> = withContext(Dispatchers.IO) {
+    override suspend fun load(): List<Script> = io {
         seedLock.lock()
         try {
             if(!preferences.getBoolean("removed-bundled-v9",false)) {
@@ -43,10 +55,10 @@ class FileScriptRepository(private val context: Context) : ScriptRepository {
             }.orEmpty(), json.optString("color", "mint"),json.optBoolean("widget",false))
         }.sortedWith(compareBy<Script> {ranks[it.id] ?: Int.MAX_VALUE}.thenBy {it.name})
     }
-    override suspend fun read(id: String): String = withContext(Dispatchers.IO) {
+    override suspend fun read(id: String): String = io {
         JSONObject(AtomicFile(File(folder(id), "item.json")).openRead().bufferedReader().use { it.readText() }).getString("source")
     }
-    override suspend fun save(document: ScriptDocument) = withContext(Dispatchers.IO) {
+    override suspend fun save(document: ScriptDocument) = io {
         val item = document.item
         require(item.name.isNotBlank() && item.name.length <= 40)
         require(io.todu.andjs.runtime.ParameterValues.error(item.parameters) == null)
@@ -58,11 +70,11 @@ class FileScriptRepository(private val context: Context) : ScriptRepository {
         write(File(dir, "item.json"), json.toString(2))
         io.todu.andjs.widget.ScriptWidgetProvider.refresh(context)
     }
-    override suspend fun saveOrder(ids:List<String>):Unit = withContext(Dispatchers.IO) {
+    override suspend fun saveOrder(ids:List<String>):Unit = io {
         write(File(root,"order.json"),JSONArray(ids).toString())
         io.todu.andjs.widget.ScriptWidgetProvider.refresh(context)
     }
-    override suspend fun delete(id: String): Unit = withContext(Dispatchers.IO) {
+    override suspend fun delete(id: String): Unit = io {
         check(folder(id).deleteRecursively()) { "删除失败" }
         io.todu.andjs.widget.ScriptWidgetProvider.refresh(context)
     }
