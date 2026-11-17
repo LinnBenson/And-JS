@@ -29,14 +29,30 @@ body{height:var(--visible-height,100%);overflow:hidden}
 .room-title{min-width:0}
 #leave{flex-shrink:0;white-space:nowrap}
 @media(max-width:600px){.room-top{align-items:center;flex-wrap:nowrap}.room-title{flex:1}#leave{margin:0}}
+.aj-entry{min-height:100dvh;display:grid;place-items:center;padding:32px 20px;background:radial-gradient(ellipse at 50% 18%,var(--aj-surface),transparent 65%)}
+.aj-entry-card{width:100%;max-width:390px;padding:34px 30px 28px;border:1px solid var(--aj-line);border-radius:24px;background:var(--aj-surface);box-shadow:0 16px 60px #00000005}
+.aj-entry-icon{width:52px;height:52px;display:grid;place-items:center;border:1px solid var(--aj-line);border-radius:16px;background:var(--aj-soft);margin-bottom:24px}
+.aj-entry-icon svg{width:24px;height:24px}
+.aj-entry-name{font-size:26px;font-weight:650;letter-spacing:-.8px;overflow-wrap:anywhere;margin:0}
+.aj-entry-sub{color:var(--aj-sub);font-size:13px;margin:6px 0 28px}
+.aj-entry .aj-auth{padding:0;border:0;display:block}
+.aj-entry .aj-label{font-size:12px;margin-bottom:9px;color:var(--aj-sub)}
+.aj-entry .aj-label svg{display:none}
+.aj-entry .aj-password{width:100%;border:1px solid transparent;transition:border-color .15s;background:var(--aj-soft);border-radius:12px}
+.aj-entry .aj-password:focus-within{border-color:var(--aj-sub)}
+.aj-entry input{font-size:16px;padding:15px 14px;min-width:0}
+.aj-entry .aj-primary{width:100%;justify-content:center;margin-top:4px;border-radius:12px;padding:14px;gap:10px}
+.aj-entry-error{color:#c95050;font-size:12px;min-height:24px;margin:7px 0 0}
+.aj-entry-footer{display:flex;justify-content:center;align-items:center;gap:6px;margin-top:22px;color:var(--aj-sub);font-size:11px}
+.aj-entry-footer svg{width:14px;height:14px}
+@media(max-width:440px){.aj-entry{padding:24px 20px}.aj-entry-card{padding:28px 24px}}
+
+.aj-entry{--aj-surface:var(--panel);--aj-soft:var(--soft);--aj-line:var(--line);--aj-sub:var(--sub);min-height:0;height:100%;overflow-y:auto;box-sizing:border-box}
+.aj-entry .entry-brand{margin:0}.aj-password{display:flex;align-items:center}.aj-password input{flex:1;width:100%;border:0;outline:none;background:transparent;color:var(--ink)}.aj-icon-button{border:0;background:transparent;color:var(--sub);padding:12px;display:grid;place-items:center}.aj-label{display:block}.aj-entry .aj-primary{display:flex;border:0;background:var(--own);color:var(--owntext);font-weight:500}.aj-entry-icon{color:var(--ink)}
 </style>
 </head>
 <body>
-<section id="entry" class="entry" aria-label="进入聊天">
-<div class="entry-brand">And JS</div><p class="entry-sub">局域网聊天</p>
-<form id="entry-form" class="entry-card"><h2>加入聊天</h2><label for="entry-code">访问码</label><input id="entry-code" type="password" maxlength="64" placeholder="无密码时留空" autocomplete="off"><button class="send" type="submit">继续 →</button><p id="entry-error" role="alert"></p></form>
-
-</section>
+<section class="aj-entry" id="entry" hidden><form class="aj-entry-card" id="entry-form"><div class="aj-entry-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></svg></div><h1 class="aj-entry-name entry-brand">And JS</h1><p class="aj-entry-sub">输入访问码，加入聊天</p>      <div class="aj-auth"><label class="aj-label" for="entry-code"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="5"/><path d="m12 12 9 9m-3-3 3-3m-6 0 3-3"/></svg>访问码</label><div class="aj-password"><input id="entry-code" type="password" placeholder="输入访问码" maxlength="64" autocomplete="current-password" aria-describedby="entry-error"><button class="aj-icon-button cursor-interaction" id="aj-eye" aria-label="显示访问码" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div><p class="aj-entry-error" id="entry-error" role="alert"></p><button type="submit" class="aj-primary">加入聊天 <span aria-hidden="true">→</span></button><div class="aj-entry-footer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></svg>局域网聊天</div></form></section>
 <main id="chat-page" hidden>
 <header><div><h1>And JS</h1><p class="subtitle">局域网聊天</p></div><span class="badge" id="connection">连接中…</span></header>
 <section class="room" aria-label="公共聊天">
@@ -53,6 +69,7 @@ body{height:var(--visible-height,100%);overflow:hidden}
 </main>
 <script>
 // 与上传页一致，通过 options.name 配置所有名称。
+const requiresToken=__REQUIRES_TOKEN__;
 const options={name:document.querySelector('meta[name="andjs-name"]').content};
 function updateChatName(name){
  const value=typeof name==='string'&&name.trim()?name.trim():'And JS';
@@ -92,7 +109,13 @@ if(m.type==='image'){const img=el('img','chat-image');img.src=url;img.alt=m.name
 else if(m.type==='file'){const a=el('a','file');a.href=url+'?download=1';a.download=m.name;a.append(el('div','file-icon',m.name.split('.').pop().slice(0,4).toUpperCase()));const info=el('div','file-info');info.append(el('div','file-name',m.name),el('div','file-size',bytes(m.size)));a.append(info,el('span','download-mark','下载 ↓'));bubble.append(a);}else bubble.textContent=m.text;body.append(bubble);row.append(body);}
 timeline.append(row);if(nearEnd)timeline.scrollTop=timeline.scrollHeight;}
 async function poll(epoch){if(!joined||epoch!==generation)return;try{let more;do{const data=await api('/messages?after='+cursor);if(!joined||epoch!==generation)return;if(data.sessionId!==session){gate('聊天已重新启动，请重新加入');return;}for(const m of data.messages)append(m);cursor=data.cursor;more=data.more;}while(more);$('connection').textContent='已连接';}catch(e){if(joined)$('connection').textContent='连接中断，重试中…';}finally{if(joined&&epoch===generation)timer=setTimeout(()=>poll(epoch),1000);}}
-$('entry-form').onsubmit=async e=>{e.preventDefault();const button=$('entry-form').querySelector('button');button.disabled=true;$('entry-error').textContent='';try{const data=await api('/join',{method:'POST',headers:{'X-AndJS-Token':$('entry-code').value},body:''});identity=data.id;session=data.sessionId;$('identity').textContent=identity;setNotice('');$('entry-code').value='';$('entry').hidden=true;$('chat-page').hidden=false;$('timeline').replaceChildren();cursor=0;joined=true;generation++;clearTimeout(timer);poll(generation);}catch(e){$('entry-error').textContent=e.name==='AbortError'?'连接超时，请重试':e.message||'连接失败';}finally{button.disabled=false;}};
+async function joinChat(){const button=$('entry-form').querySelector('button[type=submit]');button.disabled=true;$('entry-error').textContent='';try{const data=await api('/join',{method:'POST',headers:{'X-AndJS-Token':$('entry-code').value},body:''});identity=data.id;session=data.sessionId;$('identity').textContent=identity;setNotice('');$('entry-code').value='';$('entry').hidden=true;$('chat-page').hidden=false;$('timeline').replaceChildren();cursor=0;joined=true;generation++;clearTimeout(timer);poll(generation);}catch(e){$('entry').hidden=false;$('entry-error').textContent=e.name==='AbortError'?'连接超时，请重试':e.message||'连接失败';}finally{button.disabled=false;}};
+$('entry-form').onsubmit=e=>{e.preventDefault();joinChat();};
+$('aj-eye').onclick=()=>{const input=$('entry-code');input.type=input.type==='password'?'text':'password';$('aj-eye').setAttribute('aria-label',input.type==='password'?'显示访问码':'隐藏访问码');};
+$('entry-code').closest('.aj-auth').hidden=!requiresToken;
+if(!requiresToken)document.querySelector('.aj-entry-sub').textContent='局域网聊天';
+$('entry').hidden=!requiresToken;
+if(!requiresToken)joinChat();
 $('leave').onclick=async()=>{gate();try{await api('/leave',{method:'POST',body:''});}catch(_){}$('entry-code').focus();};
 function pick(file,type){if(!file||sending)return;setNotice('');if(file.size>limits[type]){setNotice((type==='image'?'图片':'文件')+'最大 '+bytes(limits[type]));return;}if(type==='image'&&!file.type.startsWith('image/')){setNotice('请选择图片');return;}clearPending();pending={file,type};$('pending-name').textContent=file.name+' · '+bytes(file.size);$('pending-image').hidden=type!=='image';if(type==='image'){previewUrl=URL.createObjectURL(file);$('pending-image').src=previewUrl;}$('pending').hidden=false;}
 $('choose-image').onclick=()=>$('image-input').click();$('choose-file').onclick=()=>$('file-input').click();$('image-input').onchange=e=>pick(e.target.files[0],'image');$('file-input').onchange=e=>pick(e.target.files[0],'file');$('remove').onclick=()=>{if(!sending)clearPending();};

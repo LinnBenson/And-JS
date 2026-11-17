@@ -87,7 +87,7 @@ internal class AndroidHttpServer private constructor(
     override val progress:UploadProgress? get()=activeProgress.get()?.snapshot()
     override val token:String get()=options.token
     override val url:String get()="http://${address.hostAddress}:${options.port}"
-    private val page by lazy {context.assets.open(if(options.chat) "http-chat.html" else "http-server.html").bufferedReader().use {it.readText()}.replace("__MAX_FILE_MB__",options.maxFileSizeMB.toString()).replace("__MAX_IMAGE_MB__",options.maxImageSizeMB.toString()).replace("__SERVER_NAME__",android.text.TextUtils.htmlEncode(options.name)).toByteArray(Charsets.UTF_8)}
+    private val page by lazy {context.assets.open(if(options.chat) "http-chat.html" else "http-server.html").bufferedReader().use {it.readText()}.replace("__MAX_FILE_MB__",options.maxFileSizeMB.toString()).replace("__MAX_IMAGE_MB__",options.maxImageSizeMB.toString()).replace("__REQUIRES_TOKEN__",options.token.isNotEmpty().toString()).replace("__SERVER_NAME__",android.text.TextUtils.htmlEncode(options.name)).toByteArray(Charsets.UTF_8)}
     private val networkCallback=object:ConnectivityManager.NetworkCallback() {
         override fun onLost(n:Network) {if(n==network) fail("Wi-Fi 已断开，HTTP 服务已关闭")}
         override fun onLinkPropertiesChanged(n:Network,p:LinkProperties) {
@@ -193,10 +193,11 @@ internal class AndroidHttpServer private constructor(
             if(headers.containsKey("transfer-encoding")) reject(400,"不支持分块上传")
             if(method=="GET" && target=="/") {respond(socket,200,page,"text/html; charset=utf-8");return}
             if(chat!=null) {serveChat(socket,input,method,target,headers);return}
-            if(method!="POST" || (target!="/text" && !target.startsWith("/upload?name=") && !target.startsWith("/image?name="))) reject(404,"找不到页面")
+            if(method!="POST" || (target!="/auth" && target!="/text" && !target.startsWith("/upload?name=") && !target.startsWith("/image?name="))) reject(404,"找不到页面")
             if(headers["origin"]?.let {it!="http://${headers["host"]}"}==true) reject(403,"请从服务网页发送")
             val supplied=headers["x-andjs-token"].orEmpty().toByteArray(Charsets.UTF_8)
             if(!MessageDigest.isEqual(supplied,token.toByteArray(Charsets.UTF_8))) reject(401,"访问码不正确")
+            if(target=="/auth") {json(socket,200,"已连接");return}
             val size=headers["content-length"]?.takeIf {it.isNotEmpty() && it.all {c->c in '0'..'9'}}?.toLongOrNull() ?: reject(411,"缺少有效文件大小")
             socket.soTimeout=15000
             if(target=="/text") {

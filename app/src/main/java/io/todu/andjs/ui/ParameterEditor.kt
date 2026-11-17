@@ -65,7 +65,10 @@ fun ParameterList(
             items(matches, key = { it.index }) { (index, parameter) ->
                 Surface(shape = RoundedCornerShape(14.dp), color = colors.surface) {
                     Row(Modifier.fillMaxWidth().heightIn(min = 62.dp).padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(parameter.key, modifier = Modifier.weight(1f), fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Column(Modifier.weight(1f).padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(parameter.key, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(parameter.value.ifEmpty { "空" }, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth())
+                        }
                         Text(parameter.type, fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp))
                         IconButton(onClick = { onEdit(index) }, enabled = enabled) {
                             Glyph("pencil", colors.onSurfaceVariant, Modifier.size(19.dp), "编辑${parameter.key}")

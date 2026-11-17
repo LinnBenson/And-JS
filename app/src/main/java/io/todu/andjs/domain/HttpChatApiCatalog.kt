@@ -8,7 +8,7 @@ object HttpChatApiCatalog {
             ApiArgument("options","object，可选","省略时使用默认配置。不自动输出启动日志或聊天消息。"),
             ApiArgument("options.port","number，可选","默认 8080，1024–65535 的整数。"),
             ApiArgument("options.name","string，可选","网页名称，默认 And JS；登录页、聊天页和浏览器标题同步显示。"),
-            ApiArgument("options.token","string，可选","默认空密码；网页仍先显示访问码入口，留空继续。非空时须匹配 1–64 个非空格 ASCII 字符。记录、图片及下载均须验证。"),
+            ApiArgument("options.token","string，可选","默认空密码，直接进入聊天；设置密码时先显示访问码入口。非空时须匹配 1–64 个非空格 ASCII 字符。记录、图片及下载均须验证。"),
             ApiArgument("options.maxFileSizeMB","number，可选","单个文件上限，默认 100 MB，可设 1–1024。"),
             ApiArgument("options.maxImageSizeMB","number，可选","单张图片上限，默认 2 MB，可设 1–100。图片原样保存供预览和下载。"),
             ApiArgument("options.onStart","function(server)，可选","监听成功后调用，可输出地址或用 server.send(text) 发系统消息。"),
