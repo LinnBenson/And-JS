@@ -5,6 +5,7 @@ import io.todu.andjs.runtime.RhinoScriptRunner
 class AndJsApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        runCatching {io.todu.andjs.runtime.HttpChatStore.recover(java.io.File(noBackupFilesDir,"http-chat"))}
         registerActivityLifecycleCallbacks(io.todu.andjs.runtime.ForegroundActivity)
         runCatching {io.todu.andjs.runtime.ScriptDnd.recover(this)}
     }

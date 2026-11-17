@@ -53,7 +53,7 @@ JavaScript 引擎：[Mozilla Rhino](https://github.com/mozilla/rhino)，MPL-2.0�
 
 ## 局域网传送
 
-连接 Wi-Fi 后运行 `andjs.httpServer.upload(options)`，通过 `onStart(server)` 取得网页地址和访问码，是否输出及输出格式由脚本决定。同一局域网的设备打开网页，可发送文字到运行日志，或上传文件到本机 `Download/` 根目录；重名文件自动编号。
+连接 Wi-Fi 后运行 `andjs.httpServer.upload(options)`，通过 `onStart(server)` 取得网页地址和访问码，是否输出及输出格式由脚本决定。同一局域网的设备打开网页，可发送文字到运行日志，上传文件到本机 `Download/` 根目录，或在图像页发送图片，通过 `andjs.log.img` 显示到日志；重名文件自动编号。
 
 ```js
 andjs.httpServer.upload({
@@ -67,11 +67,37 @@ andjs.httpServer.upload({
 });
 ```
 
-可用 `token` 指定访问码，`onText(text)` 自定义文字处理，`onProgress(upload)` 自定义进度。上传期间每秒刷新，完成或失败立即更新；`upload.id` 在同一次上传中不变，可用于 `andjs.log.info(文字, upload.id)` 原位更新日志。
+省略 `token` 或设置为空字符串时无需密码，网页访问码留空即可；设置非空 `token` 后须输入匹配的访问码。可用 `onText(text)` 自定义文字处理，`onProgress(upload)` 自定义进度。`onError(error)` 接收启动、服务、回调及上传错误，`onClose(info)` 在服务资源关闭后通知一次，停止和启动失败也会通知。致命错误通知后仍抛出，单个文件失败可继续接收。关闭回调限 250 毫秒，仅支持普通 JS 运算和文字日志，不能重新启动任务。
+
+上传期间每秒刷新，完成或失败立即更新；`upload.id` 在同一次上传中不变，可用于 `andjs.log.info(文字, upload.id)` 原位更新日志。
 
 服务使用小缓冲区流式写入，不限制上传速度，同时接收一个文件，最多处理两个连接。单文件上限默认 100 MB，可设为 1–1024 MB。文字最多 2000 字符。停止脚本、关闭窗口或进入后台会关闭服务并清理未完成文件；Wi-Fi 断开或地址变化后需重新运行。`upload` 持续等待请求，回调应尽快返回。
 
+图像页每次发送一张不超过 2 MB 的图片，仅显示到日志，不保存到下载目录；沿用图片日志的尺寸、数量和总量限制。较大的原图可通过文件页保存。上传进度的 `kind` 为 `file` 或 `image`。
+
 手机和手表均可使用。Android 10 及以上无需额外存储授权，Android 8–9 需存储权限；手表预览使用手机网络并保存到手机下载目录。服务需要 Wi-Fi IPv4 地址，路由器须允许设备互访。HTTP 不加密，请在可信局域网使用。
+
+## 局域网临时群聊
+
+`andjs.httpServer.chat(options)` 在设备上开启公共群聊。网页支持文字、图片、文件和附件下载，适配手机与电脑，使用每秒一次的 HTTP 增量轮询。打开网页先验证访问码，验证前不能读取记录或附件；省略 `token` 或设为空字符串时留空继续。同一浏览器刷新或重新加入后保持原 ID，记录从设备恢复；重新启动服务后进入全新会话。
+
+```js
+andjs.httpServer.chat({
+  token: "",
+  onStart: function (server) {
+    console.log(server.url);
+    server.send("聊天已开启");
+  },
+  onMessage: function (message, server) {
+    console.log(message.senderId, message.type);
+    if (message.text === "你好") server.send("欢迎加入聊天");
+  }
+});
+```
+
+`port` 默认 8080，`maxFileSizeMB` 默认 100，`maxImageSizeMB` 默认 2。`server.send(text)` 发送标记为“系统消息”的文字，不触发 `onMessage`。也支持 `onError` 和 `onClose`，语义与上传服务一致。文字最多 2000 字符。
+
+记录及附件只保存在应用私有临时目录，不进入 `Download/`。服务结束后删除；强制结束或崩溃留下的数据在下次启动应用时清理，不恢复历史会话。每次会话最多 10000 条消息，数据空间为 256 MB 或单文件上限两者中较大值，达到上限后需重新启动服务，不自动删除已有记录。上传与聊天服务共用一个进程内监听名额，同时处理最多两个连接、一个附件上传。用户清除 Cookie 或换用另一浏览器会分配新 ID。
 
 ## 网络、文件与系统
 
@@ -210,7 +236,7 @@ options.start/end 为 Unix 毫秒，默认今天零点到现在。历史读取�
 
 新增设备内存、存储、屏幕、电源、传感器和振动能力查询；自动亮度、息屏时间与手机屏幕旋转修改需要系统设置授权。`andjs.system.vibrate(200, 128)` 可触发短振动，`andjs.system.cancelVibration()` 可取消。手表单次最多 1 秒，手机最多 5 秒。
 
-`andjs.log.img(source, id, maxWidth)` 居中显示图片日志，接受图片 URL、本机 API 路径、Base64，以及 `andjs.http` 的 base64/file 响应对象。图片按比例缩小，手表限宽 160dp、单图原始数据不超过 512KB；图片预览日志总量另有限制：手表约 1 MB，手机约 4 MB。具体限制见接口声明。
+`andjs.log.img(source, id, maxWidth)` 居中显示图片日志，接受图片 URL、本机 API 路径、Base64，以及 `andjs.http` 的 base64/file 响应对象。图片按比例缩小，手表限宽 160dp、单图原始数据不超过 2MB；图片预览日志总量另有限制：手表约 1 MB，手机约 4 MB。具体限制见接口声明。
 
 手机图片预览支持点击右上角关闭按钮返回，桌面悬浮运行也可使用；手表不显示关闭按钮，点按图片关闭预览。
 

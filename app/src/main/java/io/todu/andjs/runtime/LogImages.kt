@@ -7,7 +7,7 @@ import java.util.Base64
 
 object LogImages {
     fun prepare(encoded:String,watch:Boolean):Map<String,Any> {
-        val limit=if(watch) 512*1024 else 2*1024*1024
+        val limit=2*1024*1024
         require(encoded.length<=((limit+2)/3)*4) {"图片数据过大"}
         val bytes=try {Base64.getDecoder().decode(encoded)} catch(_:IllegalArgumentException) {error("无效 Base64 图片")}
         require(bytes.size<=limit) {"图片数据过大"}

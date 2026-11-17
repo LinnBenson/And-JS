@@ -51,13 +51,16 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
         var waitingNanos=0L
         var interactionWaitingNanos=0L
         var callbackDepth=0
+        var httpCloseDeadline=0L
         val httpSessions=mutableListOf<HttpSession>()
         val socketManager=lazy {ScriptWebSockets(control,lowMemory)}
         val deviceSession=lazy {platform?.openDeviceSession(control) ?: error("当前环境不支持设备监听")}
         val bleSession=lazy {platform?.openBle(control) ?: error("当前环境不支持 BLE")}
         var globalValues=globals.toList()
         fun checkRun() {
-            if(control.stopped.get()) throw RunAborted(true)
+            if(httpCloseDeadline!=0L) {
+                if(System.nanoTime()>=httpCloseDeadline) throw Context.reportRuntimeError("onClose 执行时间超过 250 毫秒")
+            } else if(control.stopped.get()) throw RunAborted(true)
             if(lowMemory && heap.totalMemory()-heap.freeMemory()-baseline>16L*1024*1024) throw Context.reportRuntimeError("脚本内存占用过高，已停止")
         }
         val factory=object:ContextFactory() {
@@ -87,11 +90,14 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                 fun objectValue(parent:Scriptable, key:String):Scriptable {
                     val obj=cx.newObject(scope); ScriptableObject.putProperty(parent,key,obj);return obj
                 }
-                fun function(parent:Scriptable,key:String,body:(Array<out Any?>)->Any?) {
+                fun function(parent:Scriptable,key:String,allowOnClose:Boolean=false,body:(Array<out Any?>)->Any?) {
                     val fn=object:BaseFunction() {
                         override fun call(context:Context, scope:Scriptable, thisObj:Scriptable, args:Array<out Any?>):Any? {
                             checkRun()
-                            return try {body(args)} catch(e:Exception) {if(e is RhinoException) throw e;throw Context.reportRuntimeError(e.message ?: "调用失败")}
+                            return try {
+                                require(httpCloseDeadline==0L || allowOnClose) {"onClose 仅支持 console.log 和文字日志方法"}
+                                body(args)
+                            } catch(e:Exception) {if(e is RhinoException) throw e;throw Context.reportRuntimeError(e.message ?: "调用失败")}
                         }
                     }
                     fn.parentScope=scope;fn.prototype=ScriptableObject.getFunctionPrototype(scope)
@@ -210,13 +216,13 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                     }
                     onLogs(logs.toList())
                 }
-                listOf("info","warn","error").forEach {level->function(log,level) {args->
+                listOf("info","warn","error").forEach {level->function(log,level,allowOnClose=true) {args->
                     require(args.size<=2) {"请使用 (value, id)，多个值请先组合为字符串或数组"}
                     val id=logId(args.getOrNull(1))
                     writeLog(LogEntry(level,display(if(args.isEmpty()) Undefined.instance else args[0]).take(2_000)),id)
                     Undefined.instance
                 }}
-                function(objectValue(scope,"console"),"log") {args->
+                function(objectValue(scope,"console"),"log",allowOnClose=true) {args->
                     writeLog(LogEntry("info",args.joinToString(" ") {display(it)}.take(2_000)),null)
                     Undefined.instance
                 }
@@ -670,9 +676,11 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                     } catch(e:Exception) {deviceFailure(e)}
                 }}
                 installHttp(objectValue(api,"http"),defaultHttpClient,true)
-                function(objectValue(api,"httpServer"),"upload") {args->
+                val httpServerApi=objectValue(api,"httpServer")
+                listOf("upload","chat").forEach {serverMethod->function(httpServerApi,serverMethod) {args->
+                    val chatting=serverMethod=="chat"
                     require(callbackDepth==0) {"不能在回调中启动 HTTP 服务"}
-                    require(args.size<=1) {"请使用 upload(options)"}
+                    require(args.size<=1) {"请使用 $serverMethod(options)"}
                     val options=args.firstOrNull()
                     require(options==null || options is Undefined || options is NativeObject) {"options 必须为对象"}
                     fun option(name:String):Any? = (options as? NativeObject)?.let {ScriptableObject.getProperty(it,name)}?.takeUnless {it===Scriptable.NOT_FOUND || it is Undefined}
@@ -683,10 +691,11 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                     }
                     val port=integer("port",8080,1024,65535)
                     val size=integer("maxFileSizeMB",100,1,1024)
+                    val imageSize=if(chatting) integer("maxImageSizeMB",2,1,100) else 2
                     val tokenOption=option("token")
                     require(tokenOption==null || tokenOption is CharSequence) {"token 必须为字符串"}
-                    val token=tokenOption?.toString() ?: UUID.randomUUID().toString().replace("-","").take(12)
-                    require(token.length in 1..64 && token.all {it in '!'..'~'}) {"访问码须为 1–64 个非空格 ASCII 字符"}
+                    val token=tokenOption?.toString().orEmpty()
+                    require(token.length in 0..64 && token.all {it in '!'..'~'}) {"访问码须为空或 1–64 个非空格 ASCII 字符"}
                     fun callbackOption(name:String):org.mozilla.javascript.Function? {
                         val value=option(name)
                         require(value==null || value is org.mozilla.javascript.Function) {"$name 必须为函数"}
@@ -694,59 +703,121 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                     }
                     val onStart=callbackOption("onStart")
                     val onText=callbackOption("onText")
+                    val onMessage=callbackOption("onMessage")
+                    var serverObject:Scriptable?=null
                     val onProgress=callbackOption("onProgress")
-                    val server=(platform ?: error("当前环境不支持 HTTP 服务")).openHttpServer(port,token,size,control)
+                    val onError=callbackOption("onError")
+                    val onClose=callbackOption("onClose")
+                    var server:HttpServerSession?=null
+                    var phase="start"
+                    var closeReason="closed"
+                    var closeMessage:String?=null
+                    var errorHandlerFailed=false
                     fun callback(fn:org.mozilla.javascript.Function,arg:Any?) {
+                        val previousPhase=phase
+                        phase="callback"
                         callbackDepth++
-                        try {fn.call(cx,scope,scope,arrayOf(arg))} finally {callbackDepth--}
+                        try {fn.call(cx,scope,scope,if(chatting && fn===onMessage) arrayOf(arg,serverObject) else arrayOf(arg));phase=previousPhase} finally {callbackDepth--}
+                    }
+                    fun reportError(details:Map<String,Any?>) {
+                        if(onError==null || errorHandlerFailed) return
+                        try {callback(onError,js(details))} catch(e:Exception) {errorHandlerFailed=true;throw e}
                     }
                     fun progress(value:UploadProgress) {
                         if(onProgress!=null) callback(onProgress,js(value.values()))
-                        else {
+                        else if(!chatting) {
                             val message=when(value.status) {
-                                "completed"->"${value.name}：已保存到 Download/"
+                                "completed"->"${value.name}："+if(value.kind=="image") "已显示到日志" else "已保存到 Download/"
                                 "failed"->"${value.name}：${value.error}"
                                 else->"${value.name}：${value.values()["percent"]}%（${value.receivedBytes} / ${value.totalBytes} 字节）"
                             }
                             writeLog(LogEntry("info",message),value.id)
                         }
+                        if(value.status=="failed") reportError(mapOf(
+                            "code" to "UPLOAD_FAILED","message" to value.error,"phase" to "upload","fatal" to false,
+                            "id" to value.id,"name" to value.name))
                     }
                     try {
                         checkRun()
-                        server.failure?.let {error(it)}
-                        if(onStart!=null) callback(onStart,js(mapOf("url" to server.url,"port" to port,"token" to server.token,
-                            "status" to "listening","directory" to "Download/","maxFileSizeMB" to size)))
+                        val host=platform ?: error("当前环境不支持 HTTP 服务")
+                        val activeServer=if(chatting) host.openHttpChat(port,token,size,imageSize,control) else host.openHttpServer(port,token,size,control)
+                        server=activeServer
+                        activeServer.failure?.let {error(it)}
+                        val details=linkedMapOf<String,Any?>("url" to activeServer.url,"port" to port,"token" to activeServer.token,
+                            "status" to "listening","maxFileSizeMB" to size)
+                        if(chatting) {details["sessionId"]=activeServer.sessionId;details["maxImageSizeMB"]=imageSize} else details["directory"]="Download/"
+                        val handle=js(details) as ScriptableObject
+                        serverObject=handle
+                        if(chatting) function(handle,"send") {values->
+                            require(values.size==1 && values[0] is CharSequence) {"请使用 server.send(text)"}
+                            js(activeServer.sendSystem(values[0].toString()))
+                        }
+                        if(onStart!=null) callback(onStart,handle)
+                        phase="server"
                         var lastProgress=0L
                         var lastId:String?=null
-                        while(!server.isClosed) {
+                        while(!activeServer.isClosed) {
                             checkRun()
                             val waitStart=System.nanoTime()
-                            val active=server.progress
+                            val active=activeServer.progress
                             val waitMs=if(active==null) 0L else if(lastId!=active.id) 1L
                                 else ((lastProgress+1_000_000_000L-waitStart+999_999)/1_000_000).coerceIn(1L,1000L)
-                            val event=try {server.poll(waitMs)} finally {waitingNanos+=System.nanoTime()-waitStart}
+                            val event=try {activeServer.poll(waitMs)} finally {waitingNanos+=System.nanoTime()-waitStart}
                             checkRun()
                             when(event) {
+                                is HttpServerEvent.Message-> {if(onMessage!=null) callback(onMessage,js(event.value))}
                                 is HttpServerEvent.Text-> {
                                     try {
                                         if(onText!=null) callback(onText,event.text) else writeLog(LogEntry("info",event.text),null)
                                         event.reply.complete(true)
                                     } finally {event.reply.complete(false)}
                                 }
+                                is HttpServerEvent.Image-> {
+                                    if(!event.reply.isDone) {
+                                        try {
+                                            val img=ScriptableObject.getProperty(log,"img") as org.mozilla.javascript.Function
+                                            img.call(cx,scope,log,arrayOf(event.base64))
+                                            event.reply.complete(null)
+                                        } catch(e:RunAborted) {event.reply.complete("上传已停止");throw e}
+                                        catch(e:Exception) {event.reply.complete(e.message ?: "图片日志显示失败")}
+                                    }
+                                }
                                 is HttpServerEvent.Progress->progress(event.value)
                                 HttpServerEvent.Wake,null->Unit
                             }
-                            val current=server.progress
+                            val current=activeServer.progress
                             val now=System.nanoTime()
                             if(current!=null && (lastId!=current.id || now-lastProgress>=1_000_000_000L)) {
                                 progress(current);lastProgress=now;lastId=current.id
                             }
                         }
                         checkRun()
-                        server.failure?.let {error(it)}
-                    } finally {server.close();server.awaitClosed()}
+                        activeServer.failure?.let {error(it)}
+                    } catch(e:RunAborted) {
+                        closeReason="stopped";throw e
+                    } catch(e:ScriptCallbackExited) {
+                        closeReason="exit";throw e
+                    } catch(e:Exception) {
+                        if(control.stopped.get()) {closeReason="stopped";throw e}
+                        closeReason="error";closeMessage=e.message ?: "HTTP 服务失败"
+                        reportError(mapOf(
+                            "code" to when(phase) {"start"->"START_FAILED";"callback"->"CALLBACK_ERROR";else->"SERVER_ERROR"},
+                            "message" to closeMessage,"phase" to phase,"fatal" to true,"id" to null,"name" to null))
+                        throw e
+                    } finally {
+                        try {server?.close();server?.awaitClosed()} finally {
+                            if(onClose!=null) {
+                                // Cleanup stays on the Rhino thread and cannot revive a cancelled run.
+                                httpCloseDeadline=System.nanoTime()+250_000_000L
+                                try {callback(onClose,js(mapOf("reason" to closeReason,"message" to closeMessage,
+                                    "started" to (server!=null),"url" to server?.url)))}
+                                catch(e:Exception) {writeLog(LogEntry("error","onClose：${e.message ?: "回调失败"}".take(2000)),null)}
+                                finally {httpCloseDeadline=0L}
+                            }
+                        }
+                    }
                     Undefined.instance
-                }
+                }}
 
                 function(log,"img") {args->
                     val host=platform ?: error("当前环境不支持图片日志")
@@ -777,12 +848,12 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                     var encoded=input.toString()
                     if(encoded.startsWith("https://") || encoded.startsWith("http://")) {
                         val start=System.nanoTime()
-                        try {encoded=session.request(encoded,org.json.JSONObject().put("responseType","base64").put("maxBytes",if(lowMemory) 524288 else 2097152).put("throwOnHttpError",true)).getString("base64")}
+                        try {encoded=session.request(encoded,org.json.JSONObject().put("responseType","base64").put("maxBytes",2097152).put("throwOnHttpError",true)).getString("base64")}
                         catch(e:Exception) {if(control.stopped.get()) throw RunAborted(true);throw e}
                         finally {waitingNanos+=System.nanoTime()-start}
                     } else if(encoded.startsWith("app:/") || encoded.startsWith("shared:/")) {
                         val details=host.call("files","info",org.json.JSONArray().put(encoded),control) as Map<*,*>
-                        require((details["size"] as Number).toLong()<=(if(lowMemory) 524288 else 2097152)) {"图片文件过大"}
+                        require((details["size"] as Number).toLong()<=(2097152)) {"图片文件过大"}
                         encoded=host.call("files","read",org.json.JSONArray().put(encoded).put("base64"),control) as String
                     } else if(encoded.startsWith("data:")) {
                         val comma=encoded.indexOf(',')
