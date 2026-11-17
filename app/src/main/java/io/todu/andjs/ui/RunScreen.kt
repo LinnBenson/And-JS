@@ -46,6 +46,7 @@ import androidx.compose.ui.window.DialogProperties
     val hasResult=resultText.isNotEmpty()
     val height=(LocalConfiguration.current.screenHeightDp * .84f).dp.coerceAtMost(620.dp)
     ModalHost(onDismiss=onClose) {close ->
+        KeepRunScreenOn()
         Surface(modifier=Modifier.padding(horizontal=24.dp).widthIn(max=440.dp).fillMaxWidth().height(height),shape=RoundedCornerShape(24.dp),color=colors.background,
             border=if(overlay) BorderStroke(1.dp,colors.outlineVariant) else null,
             shadowElevation=if(overlay) 12.dp else 0.dp) {

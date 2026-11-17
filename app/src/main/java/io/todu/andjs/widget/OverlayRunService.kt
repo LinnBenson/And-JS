@@ -29,8 +29,6 @@ class OverlayRunService:Service(),LifecycleOwner,SavedStateRegistryOwner,ViewMod
     private val scope=CoroutineScope(SupervisorJob()+Dispatchers.Main.immediate)
     private var view:ComposeView?=null
     private lateinit var model:HomeViewModel
-    private val handler=Handler(Looper.getMainLooper())
-    private val idleClose=Runnable {stopSelf()}
     private val screenOff=object:BroadcastReceiver() {override fun onReceive(c:Context,i:Intent) {stopSelf()}}
     override fun onBind(intent:Intent?)=null
     override fun onCreate() {
@@ -91,9 +89,7 @@ class OverlayRunService:Service(),LifecycleOwner,SavedStateRegistryOwner,ViewMod
                     if(item==null) {stopSelf();return@launch}
                     model.run(item)
                     model.execution.collect {run->
-                        handler.removeCallbacks(idleClose)
                         if(run==null) {stopSelf();return@collect}
-                        if(run!=null && !run.running) handler.postDelayed(idleClose,300_000)
                     }
                 } catch(e:Exception) {if(e !is CancellationException) stopSelf()}
             }
@@ -107,7 +103,6 @@ class OverlayRunService:Service(),LifecycleOwner,SavedStateRegistryOwner,ViewMod
     override fun onTimeout(startId:Int,fgsType:Int) {stopSelf()}
     override fun onTaskRemoved(rootIntent:Intent?) {stopSelf()}
     override fun onDestroy() {
-        handler.removeCallbacksAndMessages(null)
         model.background();scope.cancel()
         unregisterReceiver(screenOff)
         view?.let {it.disposeComposition();getSystemService(WindowManager::class.java).removeView(it)}

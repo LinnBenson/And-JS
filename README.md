@@ -13,6 +13,8 @@
 
 使用 Rhino 1.9.1 在后台执行 JavaScript，支持运行结果、日志、错误行号、停止操作；前台脚本不设总运行时长上限。不预装示例脚本，可新建或导入 JS 文件。
 
+手机和手表的运行窗口打开时保持屏幕常亮，停止、完成或报错后仍保持常亮，关闭窗口后恢复系统休眠。桌面悬浮运行窗口不再在运行结束五分钟后自动关闭。
+
 内置方法见设置 → 接口声明：`andjs.value.get`、`andjs.global.get`、`exit(value)`、`console.log`、`andjs.log.info/warn/error`、`andjs.sleep`、`andjs.util.uuid/randomInt`。参数和全局变量在启动时读取快照，脚本自身通过 set/delete 写入后可立即读取更新。
 
 运行环境不是浏览器或 Node.js，不提供 DOM、fetch、require、定时器或 Android Java 对象。当前以同步脚本为主，不提供异步任务调度。停止通过解释器指令检查实现；个别原生运算可能延迟响应。没有独立进程或硬内存配额，请只运行可信脚本。手表提供独立的精简运行界面。

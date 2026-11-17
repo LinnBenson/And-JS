@@ -49,6 +49,7 @@ private val watchContentShape=RoundedCornerShape(8.dp)
     val snapshot by model.snapshot.collectAsStateWithLifecycle()
     val run by model.execution.collectAsStateWithLifecycle()
     val interaction by model.interaction.collectAsStateWithLifecycle()
+    if(run!=null) KeepRunScreenOn()
     BackHandler(enabled=noteIndex!=null) {noteIndex=null}
     MaterialTheme(colorScheme=io.todu.andjs.ui.theme.Dark.copy(background=Color.Black,surface=watchCard)) {
         Surface(Modifier.fillMaxSize(),color=Color.Black) {
