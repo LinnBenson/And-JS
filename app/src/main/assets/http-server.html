@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="andjs-name" content="__SERVER_NAME__"><title>__SERVER_NAME__ · 局域网传送</title>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="andjs-name" content="__SERVER_NAME__"><title>__SERVER_NAME__</title>
 <style>
 #andjs-transfer-preview{--aj-bg:light-dark(#f5f6f8,#111215);--aj-surface:light-dark(#ffffff,#1b1d21);--aj-ink:light-dark(#202226,#f3f4f6);--aj-sub:light-dark(#737780,#a0a5ae);--aj-line:light-dark(#e5e7eb,#353840);--aj-soft:light-dark(#f4f5f7,#25282e);--aj-action:light-dark(#24272c,#f0f1f4);--aj-on-action:light-dark(#fff,#1a1c20);--aj-brand:light-dark(#536ce7,#9ba9ff);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--aj-ink);width:100%}
 #andjs-transfer-preview *{box-sizing:border-box}
@@ -23,7 +23,7 @@
 #andjs-transfer-preview .aj-tabs{display:flex;gap:26px;padding:0 24px;border-bottom:1px solid var(--aj-line)}
 #andjs-transfer-preview .aj-tab{position:relative;display:flex;align-items:center;gap:8px;padding:19px 2px 16px;border:0;background:transparent;color:var(--aj-sub);font-size:14px}
 #andjs-transfer-preview .aj-tab:focus{outline:none}
-#andjs-transfer-preview .aj-tab:focus-visible{background:var(--aj-soft)}
+#andjs-transfer-preview .aj-tab:focus-visible{background:transparent}
 #andjs-transfer-preview .aj-tab[aria-selected=true]{color:var(--aj-ink);font-weight:600}
 #andjs-transfer-preview .aj-tab[aria-selected=true]:after{content:"";height:2px;position:absolute;bottom:-1px;left:0;right:0;border-radius:2px;background:var(--aj-ink)}
 #andjs-transfer-preview .aj-content{padding:25px 24px 22px}
@@ -148,7 +148,7 @@ get('aj-access').addEventListener('input',()=>{get('aj-entry-error').textContent
 const displayName=typeof options.name==='string' && options.name.trim()?options.name.trim():'And JS';
 document.querySelector('.aj-brand').textContent=displayName;
 document.querySelector('.aj-bottom>span:last-child').textContent=displayName+' · Transfer';
-document.title=displayName+' · 局域网传送';
+document.title=displayName;
 get('andjs-transfer-preview').setAttribute('aria-label',displayName+' 局域网传送');
 const filePlaceholder=get('aj-file-name').innerHTML,imagePlaceholder=get('aj-image-name').innerHTML;
 const resultKinds=new Set();
