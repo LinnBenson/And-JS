@@ -19,6 +19,8 @@ import java.nio.file.StandardCopyOption
 import java.util.Base64
 
 class AndroidPlatformApi(private val context:Context):PlatformApi {
+    override fun openHotspot(options:HotspotOptions,control:RunControl):HotspotSession = AndroidHotspots.start(context.applicationContext,options,control)
+    override fun hotspot(method:String):Map<String,Any?> = AndroidHotspots.call(context.applicationContext,method)
     override fun openHttpServer(port:Int,token:String,maxFileSizeMB:Int,control:RunControl,name:String):HttpServerSession = AndroidHttpServer.open(context.applicationContext,HttpServerOptions(port,token,maxFileSizeMB,name=name),control)
     override fun openHttpChat(port:Int,token:String,maxFileSizeMB:Int,maxImageSizeMB:Int,control:RunControl,name:String):HttpServerSession = AndroidHttpServer.open(context.applicationContext,HttpServerOptions(port,token,maxFileSizeMB,true,maxImageSizeMB,name),control)
     override fun openDeviceSession(control:RunControl):DeviceSession=AndroidDeviceSession(context.applicationContext,control)
@@ -125,11 +127,19 @@ class AndroidPlatformApi(private val context:Context):PlatformApi {
                 "getVolume"->{val s=stream(string(0,"music"));mapOf("value" to audio.getStreamVolume(s),"max" to audio.getStreamMaxVolume(s))}
                 "setVolume"->{val value=number(0);val s=stream(string(1,"music"));require(value in 0..audio.getStreamMaxVolume(s));audio.setStreamVolume(s,value,0);true}
                 "openSettings"->{
-                    val action=when(string(0,"app")) {"app"->Settings.ACTION_APPLICATION_DETAILS_SETTINGS;"wifi"->Settings.ACTION_WIFI_SETTINGS;"bluetooth"->Settings.ACTION_BLUETOOTH_SETTINGS;"display"->Settings.ACTION_DISPLAY_SETTINGS;"sound"->Settings.ACTION_SOUND_SETTINGS;"battery"->Settings.ACTION_BATTERY_SAVER_SETTINGS;"location"->Settings.ACTION_LOCATION_SOURCE_SETTINGS;"date"->Settings.ACTION_DATE_SETTINGS;"writeSettings"->Settings.ACTION_MANAGE_WRITE_SETTINGS;else->throw IllegalArgumentException("不支持的设置页")}
+                    val page=string(0,"app")
+                    val action=when(page) {"app"->Settings.ACTION_APPLICATION_DETAILS_SETTINGS;"wifi"->Settings.ACTION_WIFI_SETTINGS;"hotspot"->"android.settings.TETHER_SETTINGS";"bluetooth"->Settings.ACTION_BLUETOOTH_SETTINGS;"display"->Settings.ACTION_DISPLAY_SETTINGS;"sound"->Settings.ACTION_SOUND_SETTINGS;"battery"->Settings.ACTION_BATTERY_SAVER_SETTINGS;"location"->Settings.ACTION_LOCATION_SOURCE_SETTINGS;"date"->Settings.ACTION_DATE_SETTINGS;"writeSettings"->Settings.ACTION_MANAGE_WRITE_SETTINGS;else->throw IllegalArgumentException("不支持的设置页")}
                     val intent=Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     if(action==Settings.ACTION_APPLICATION_DETAILS_SETTINGS || action==Settings.ACTION_MANAGE_WRITE_SETTINGS) intent.data=Uri.parse("package:${context.packageName}")
                     (context.applicationContext as? io.todu.andjs.AndJsApplication)?.externalFlow=true
-                    try {context.startActivity(intent)} catch(e:Exception) {(context.applicationContext as? io.todu.andjs.AndJsApplication)?.externalFlow=false;throw e};true
+                    try {context.startActivity(intent)} catch(e:Exception) {
+                        (context.applicationContext as? io.todu.andjs.AndJsApplication)?.externalFlow=false
+                        if(page=="hotspot") when(e) {
+                            is android.content.ActivityNotFoundException->throw IllegalStateException("系统未提供可打开的热点设置页面",e)
+                            is SecurityException->throw IllegalStateException("系统禁止打开热点设置页面",e)
+                        }
+                        throw e
+                    };true
                 }
                 else->error("未知方法")
             }

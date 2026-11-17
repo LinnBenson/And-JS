@@ -66,6 +66,7 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
         var callbackDepth=0
         var httpCloseDeadline=0L
         val httpSessions=mutableListOf<HttpSession>()
+        val hotspotPumps=mutableListOf<()->Unit>()
         val socketManager=lazy {ScriptWebSockets(control,lowMemory)}
         val deviceSession=lazy {platform?.openDeviceSession(control) ?: error("当前环境不支持设备监听")}
         val bleSession=lazy {platform?.openBle(control) ?: error("当前环境不支持 BLE")}
@@ -97,6 +98,8 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                 require(code.length<=if(lowMemory) 256_000 else 1_000_000) {"脚本超过当前设备大小限制"}
                 val scopeSockets=mutableListOf<ScriptWebSockets.Connection>()
                 val scopeBle=mutableListOf<BleHandle>()
+                val scopeHotspots=mutableListOf<HotspotSession>()
+                val scopeHotspotClosers=mutableListOf<()->Unit>()
                 try {
                 var returned:Any?=Undefined.instance
                 val scope=cx.initSafeStandardObjects()
@@ -689,6 +692,78 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                     } catch(e:Exception) {deviceFailure(e)}
                 }}
                 installHttp(objectValue(api,"http"),defaultHttpClient,true)
+                val wifiApi=objectValue(api,"wifi")
+                listOf("getHotspotCapabilities","getHotspotState","stopHotspot","checkHotspotLeaks").forEach {method->
+                    function(wifiApi,method) {args->
+                        require(args.isEmpty()) {"$method() 不接受参数"}
+                        val start=System.nanoTime()
+                        try {js((platform ?: error("当前环境不支持热点")).hotspot(method))} finally {waitingNanos+=System.nanoTime()-start}
+                    }
+                }
+                function(wifiApi,"startHotspot") {args->
+                    require(callbackDepth==0) {"不能在回调中启动热点"}
+                    require(scopeHotspots.none {it.active}) {"当前脚本已启动热点"}
+                    require(args.size<=1) {"请使用 startHotspot(options)"}
+                    val options=args.firstOrNull()
+                    require(options==null || options is Undefined || options is NativeObject) {"options 必须为对象"}
+                    fun option(name:String):Any?=(options as? NativeObject)?.let {ScriptableObject.getProperty(it,name)}?.takeUnless {it===Scriptable.NOT_FOUND || it is Undefined}
+                    fun textOption(name:String):String? {val value=option(name);require(value==null || value is CharSequence) {"$name 必须为字符串"};return value?.toString()}
+                    val name=textOption("name")
+                    val password=textOption("password")
+                    require(name==null || (name.toByteArray(Charsets.UTF_8).size in 1..32 && name.none {it<' ' || it=='\u007f'})) {"name 须为 1–32 个 UTF-8 字节，不能包含控制字符"}
+                    require(password==null || (password.length in 8..63 && password.all {it in ' '..'~'})) {"password 须为 8–63 个 ASCII 字符"}
+                    val internet=option("internet") ?: false
+                    require(internet is Boolean) {"internet 必须为 boolean"}
+                    val callbacks=listOf("onStart","onStop","onError","onClientsChanged","onInternetChanged").associateWith {key->
+                        val fn=option(key);require(fn==null || fn is org.mozilla.javascript.Function) {"$key 必须为函数"};fn as? org.mozilla.javascript.Function
+                    }
+                    fun invoke(key:String,value:Map<String,Any?>) {
+                        val fn=callbacks[key] ?: return
+                        callbackDepth++
+                        try {fn.call(cx,scope,scope,arrayOf(js(value)))} finally {callbackDepth--}
+                    }
+                    var hotspot:HotspotSession?=null
+                    var stopNotified=false
+                    fun dispatch() {
+                        if(control.stopped.get() && httpCloseDeadline==0L) return
+                        val current=hotspot ?: return
+                        while(true) {
+                            val event=current.poll(0) ?: break
+                            when(event.type) {
+                                "stop"->if(!stopNotified){
+                                    stopNotified=true
+                                    val previousDeadline=httpCloseDeadline
+                                    httpCloseDeadline=System.nanoTime()+250_000_000L
+                                    try {invoke("onStop",event.values)} finally {httpCloseDeadline=previousDeadline}
+                                }
+                                "error"->{invoke("onError",event.values);throw HotspotFailure(event.values["code"].toString(),event.values["message"].toString())}
+                                "clientsChanged"->invoke("onClientsChanged",event.values)
+                                "internetChanged"->invoke("onInternetChanged",event.values)
+                            }
+                        }
+                    }
+                    val start=System.nanoTime()
+                    val active=try {(platform ?: error("当前环境不支持热点")).openHotspot(HotspotOptions(name,password,internet),control)}
+                    catch(e:Exception) {
+                        checkRun()
+                        invoke("onError",mapOf("code" to ((e as? HotspotFailure)?.code ?: "START_FAILED"),"message" to e.message,"fatal" to true))
+                        throw e
+                    } finally {waitingNanos+=System.nanoTime()-start}
+                    hotspot=active;scopeHotspots.add(active)
+                    val pump:()->Unit={dispatch()}
+                    hotspotPumps.add(pump)
+                    scopeHotspotClosers.add {
+                        hotspotPumps.remove(pump)
+                        active.close()
+                        // Cleanup callbacks have the same bounded, log-only rules as HTTP onClose.
+                        httpCloseDeadline=System.nanoTime()+250_000_000L
+                        try {dispatch()} finally {httpCloseDeadline=0L}
+                    }
+                    try {invoke("onStart",active.info)} catch(e:Exception) {
+                        active.close();invoke("onError",mapOf("code" to "CALLBACK_ERROR","message" to e.message,"fatal" to true));throw e
+                    }
+                    js(active.info)
+                }
                 val httpServerApi=objectValue(api,"httpServer")
                 listOf("upload","chat").forEach {serverMethod->function(httpServerApi,serverMethod) {args->
                     val chatting=serverMethod=="chat"
@@ -775,9 +850,10 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                         var lastId:String?=null
                         while(!activeServer.isClosed) {
                             checkRun()
+                            hotspotPumps.toList().forEach {it()}
                             val waitStart=System.nanoTime()
                             val active=activeServer.progress
-                            val waitMs=if(active==null) 0L else if(lastId!=active.id) 1L
+                            val waitMs=if(active==null) {if(hotspotPumps.isEmpty()) 0L else 200L} else if(lastId!=active.id) 1L
                                 else ((lastProgress+1_000_000_000L-waitStart+999_999)/1_000_000).coerceIn(1L,1000L)
                             val event=try {activeServer.poll(waitMs)} finally {waitingNanos+=System.nanoTime()-waitStart}
                             checkRun()
@@ -1002,11 +1078,21 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                     min.toInt()+random.nextInt((max-min+1).toInt())
                 }
                 checkRun()
-                try {program(cx,code).exec(cx,scope);checkRun()} catch(_:ScriptExited) {}
+                try {
+                    program(cx,code).exec(cx,scope);checkRun()
+                    do {
+                        checkRun()
+                        hotspotPumps.toList().forEach {it()}
+                        if(scopeHotspots.none {it.active}) break
+                        checkRun()
+                        val waitStart=System.nanoTime()
+                        try {Thread.sleep(100)} finally {waitingNanos+=System.nanoTime()-waitStart}
+                    } while(true)
+                } catch(_:ScriptExited) {}
                 return returned
                 } finally {
                     val closeStart=System.nanoTime()
-                    try {scopeBle.forEach {runCatching {it.close()}};scopeSockets.forEach {it.finish()}} finally {waitingNanos+=System.nanoTime()-closeStart}
+                    try {scopeHotspotClosers.asReversed().forEach {runCatching {it()}};scopeHotspots.forEach {runCatching {it.close()}};scopeBle.forEach {runCatching {it.close()}};scopeSockets.forEach {it.finish()}} finally {waitingNanos+=System.nanoTime()-closeStart}
                 }
                 }
                 execute(source,parameters,control.persistVariables,0)

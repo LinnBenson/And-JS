@@ -44,6 +44,12 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
             status=when {preview->"在手表上授权";fine->"精确位置";coarse->"大致位置";else->"去授权"}) {
             request("location",arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.ACCESS_FINE_LOCATION))
         }
+        if(Build.VERSION.SDK_INT>=33) {
+            val allowed=granted(Manifest.permission.NEARBY_WIFI_DEVICES)
+            PermissionCard("热点","创建局域网热点","wifi",allowed,compact,status=if(preview) "在手表上授权" else if(allowed) "已授权" else "去授权") {
+                request("hotspot",arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES))
+            }
+        }
         if(Build.VERSION.SDK_INT>=31 && (preview || context.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH))) {
             val allowed=granted(Manifest.permission.BLUETOOTH_CONNECT) && granted(Manifest.permission.BLUETOOTH_SCAN) && granted(Manifest.permission.BLUETOOTH_ADVERTISE)
             PermissionCard("蓝牙","扫描、广播与蓝牙连接","bluetooth",allowed,compact,status=if(preview) "在手表上授权" else if(allowed) "已授权" else "去授权") {

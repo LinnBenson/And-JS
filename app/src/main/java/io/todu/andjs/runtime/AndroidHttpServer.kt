@@ -28,7 +28,7 @@ import org.json.JSONObject
 /** A small, connection-close HTTP/1.x endpoint; no request body is buffered except bounded text. */
 internal class AndroidHttpServer private constructor(
     private val context:Context,private val options:HttpServerOptions,private val control:RunControl,
-    private val manager:ConnectivityManager,private val network:Network,private val address:Inet4Address,private val lease:Any
+    private val manager:ConnectivityManager,private val network:Network?,private val address:Inet4Address,private val lease:Any
 ):HttpServerSession {
     companion object {
         private val owner=AtomicReference<Any?>()
@@ -38,15 +38,23 @@ internal class AndroidHttpServer private constructor(
             var server:AndroidHttpServer?=null
             try {
                 val manager=context.getSystemService(ConnectivityManager::class.java)
-                val wifi=manager.allNetworks.firstOrNull {
+                val hotspot=AndroidHotspots.hasActive()
+                val wifi=if(hotspot) null else manager.allNetworks.firstOrNull {
                     val capabilities=manager.getNetworkCapabilities(it)
                     capabilities!=null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
                         capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN) &&
                         !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
                 }
-                    ?: error("请先连接 Wi-Fi")
-                val address=manager.getLinkProperties(wifi)?.linkAddresses?.map {it.address}?.filterIsInstance<Inet4Address>()?.firstOrNull {!it.isLoopbackAddress && !it.isLinkLocalAddress}
-                    ?: error("Wi-Fi 尚未取得 IPv4 地址")
+                val address=if(hotspot) {
+                    val deadline=System.nanoTime()+3_000_000_000L
+                    var addresses=AndroidHotspots.addresses(context)
+                    while(addresses.isEmpty() && System.nanoTime()<deadline && !control.stopped.get()) {Thread.sleep(100);addresses=AndroidHotspots.addresses(context)}
+                    addresses.singleOrNull() ?: error("无法确定唯一热点 IPv4 地址，请稍后重试")
+                } else {
+                    check(wifi!=null) {"请先连接 Wi-Fi 或启动热点"}
+                    manager.getLinkProperties(wifi)?.linkAddresses?.map {it.address}?.filterIsInstance<Inet4Address>()?.firstOrNull {!it.isLoopbackAddress && !it.isLinkLocalAddress}
+                        ?: error("Wi-Fi 尚未取得 IPv4 地址")
+                }
                 server=AndroidHttpServer(context,options,control,manager,wifi,address,lease)
                 server.start()
                 return server
@@ -98,22 +106,26 @@ internal class AndroidHttpServer private constructor(
         listener.reuseAddress=true
         try {listener.bind(InetSocketAddress(address,options.port),4)} catch(e:java.net.BindException) {error("端口 ${options.port} 已被占用或无法监听")}
         synchronized(lifecycleLock) {
-            // An active request keeps Wi-Fi needed while serving, including on Wear OS.
-            // Do not require INTERNET: a local-only Wi-Fi network is sufficient.
-            // close() releases this request through unregisterNetworkCallback.
-            manager.requestNetwork(NetworkRequest.Builder()
-                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-                .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
-                .build(),networkCallback)
-            registered=true
+            if(network!=null) {
+                // An active request keeps Wi-Fi needed while serving, including on Wear OS.
+                // Do not require INTERNET: a local-only Wi-Fi network is sufficient.
+                // close() releases this request through unregisterNetworkCallback.
+                manager.requestNetwork(NetworkRequest.Builder()
+                    .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+                    .build(),networkCallback)
+                registered=true
+            }
         }
-        if(manager.getLinkProperties(network)?.linkAddresses?.none {it.address==address}!=false) fail("Wi-Fi 已断开")
+        if(network!=null && manager.getLinkProperties(network)?.linkAddresses?.none {it.address==address}!=false) fail("Wi-Fi 已断开")
+        if(network==null) listener.soTimeout=1000
         unregisterStop=control.registerStop {close()}
         if(closed.get()) {unregisterStop?.invoke();unregisterStop=null;return}
         acceptThread=Thread({
             try {
                 while(!closed.get()) {
-                    val socket=listener.accept()
+                    if(network==null && address !in AndroidHotspots.addresses(context)) {fail("热点已停止或地址已变化");break}
+                    val socket=try {listener.accept()} catch(_:SocketTimeoutException) {continue}
                     sockets.add(socket)
                     if(closed.get()) {sockets.remove(socket);socket.close();break}
                     try {workers.execute {socket.use {serve(it)};sockets.remove(socket)}}

@@ -5,7 +5,7 @@ object ApiUsage {
     fun explain(method:ApiMethod):ApiMethod {
         val id=method.id
         val notes=when {
-            id=="httpServer.upload"->listOf("先连接 Wi-Fi，再运行脚本；在 onStart(server) 中自行显示 server.url 与 server.token，同一局域网的设备用浏览器打开地址并填写访问码。Wi-Fi 无需能访问互联网，但路由器不能隔离设备。","upload 会持续等待并处理请求，后面的语句不会立即执行。回调在脚本线程顺序执行，请避免长时间等待；停止脚本或离开运行界面会关闭服务。","文件直接保存到本机 Download/，重名自动编号。Android 10 及以上无需额外存储授权；Android 8–9 需存储权限。手表预览使用手机网络并保存到手机下载目录。","HTTP 不加密，访问码仅用于控制访问，请在可信局域网使用。")
+            id=="httpServer.upload"->listOf("先连接 Wi-Fi，或在脚本中先启动热点；在 onStart(server) 中自行显示 server.url 与 server.token，同一局域网的设备用浏览器打开地址并填写访问码。Wi-Fi 无需能访问互联网，但路由器不能隔离设备。","upload 会持续等待并处理请求，后面的语句不会立即执行。回调在脚本线程顺序执行，请避免长时间等待；停止脚本或离开运行界面会关闭服务。","文件直接保存到本机 Download/，重名自动编号。Android 10 及以上无需额外存储授权；Android 8–9 需存储权限。手表预览使用手机网络并保存到手机下载目录。","HTTP 不加密，访问码仅用于控制访问，请在可信局域网使用。")
             id.startsWith("http.")->listOf("将 example.com 替换为你的服务地址。同步等待返回结果，网络失败可用 try/catch 读取 e.code 和 e.message。","默认非 2xx 响应也会返回，请判断 response.ok；只有需要抛错时才设置 throwOnHttpError。")
             id.startsWith("ws.")->listOf("先用 andjs.ws.connect 创建 ws；示例地址须替换为实际 WebSocket 服务地址。","onMessage 只注册处理器，listen 才分发回调并保持运行。输入弹窗期间消息排队；停止脚本或进入后台会断开。")
             id.startsWith("ble.")->listOf("先在权限授权页授予蓝牙权限，扫描还需精确位置与系统定位开启。手机和手表各自使用本机蓝牙。","示例蓝牙地址和 UUID 仅展示写法，须按扫描结果及设备协议替换；注册回调后调用 listen 才会处理消息。")

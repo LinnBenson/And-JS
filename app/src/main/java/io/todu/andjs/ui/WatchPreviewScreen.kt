@@ -64,6 +64,8 @@ import java.io.File
             val root=File(context.filesDir,"watch-preview/user")
             val platform=object:PlatformApi {
                 private val host=AndroidPlatformApi(context)
+                override fun openHotspot(options:io.todu.andjs.runtime.HotspotOptions,control:RunControl):io.todu.andjs.runtime.HotspotSession=host.openHotspot(options,control)
+                override fun hotspot(method:String):Map<String,Any?> = host.hotspot(method)
                 override fun openHttpServer(port:Int,token:String,maxFileSizeMB:Int,control:RunControl,name:String):HttpServerSession=host.openHttpServer(port,token,maxFileSizeMB,control,name)
                 override fun openHttpChat(port:Int,token:String,maxFileSizeMB:Int,maxImageSizeMB:Int,control:RunControl,name:String):HttpServerSession=host.openHttpChat(port,token,maxFileSizeMB,maxImageSizeMB,control,name)
                 override fun call(namespace:String,method:String,args:org.json.JSONArray):Any? = when(namespace) {
