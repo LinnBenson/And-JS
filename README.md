@@ -57,6 +57,7 @@ JavaScript 引擎：[Mozilla Rhino](https://github.com/mozilla/rhino)，MPL-2.0�
 
 ```js
 andjs.httpServer.upload({
+  name: "And JS",
   port: 8080,
   maxFileSizeMB: 100,
   onStart: function (server) {
@@ -75,6 +76,8 @@ andjs.httpServer.upload({
 
 应用启动、手动清理缓存和自动缓存维护时，会检查异常中断的未完成上传，跳过正在上传的文件，保留已上传成功的文件。Android 8–9 旧版本留下且没有记录的文件无法可靠识别，不会自动删除。
 
+`options.name` 设置上传网页名称，默认 `And JS`，同时用于页面标题、页脚和浏览器标题。发送文件、文字或图像成功后显示 2 秒结果遮罩，再清空对应内容；失败时保留内容以便重试。
+
 图像页每次发送一张不超过 2 MB 的图片，仅显示到日志，不保存到下载目录；沿用图片日志的尺寸、数量和总量限制。较大的原图可通过文件页保存。上传进度的 `kind` 为 `file` 或 `image`。
 
 手机和手表均可使用。Android 10 及以上无需额外存储授权，Android 8–9 需存储权限；手表预览使用手机网络并保存到手机下载目录。上传和群聊服务运行期间主动申请保持 Wi-Fi，结束时释放；只监听非 VPN 的 Wi-Fi IPv4 地址。手动关闭 Wi-Fi、信号丢失或系统限制仍可能导致断开。路由器须允许设备互访。HTTP 不加密，请在可信局域网使用。
@@ -85,6 +88,7 @@ andjs.httpServer.upload({
 
 ```js
 andjs.httpServer.chat({
+  name: "And JS",
   token: "",
   onStart: function (server) {
     console.log(server.url);
@@ -96,6 +100,8 @@ andjs.httpServer.chat({
   }
 });
 ```
+
+`options.name` 设置登录页、聊天页和浏览器标题的名称，默认 `And JS`；`server.name` 返回当前名称。发送进度显示在输入区右上角，完成后恢复用户 ID。
 
 `port` 默认 8080，`maxFileSizeMB` 默认 100，`maxImageSizeMB` 默认 2。`server.send(text)` 发送标记为“系统消息”的文字，不触发 `onMessage`。也支持 `onError` 和 `onClose`，语义与上传服务一致。文字最多 2000 字符。
 

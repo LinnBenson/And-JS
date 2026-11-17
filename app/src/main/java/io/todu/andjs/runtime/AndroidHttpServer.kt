@@ -87,7 +87,7 @@ internal class AndroidHttpServer private constructor(
     override val progress:UploadProgress? get()=activeProgress.get()?.snapshot()
     override val token:String get()=options.token
     override val url:String get()="http://${address.hostAddress}:${options.port}"
-    private val page by lazy {context.assets.open(if(options.chat) "http-chat.html" else "http-server.html").bufferedReader().use {it.readText()}.replace("__MAX_FILE_MB__",options.maxFileSizeMB.toString()).replace("__MAX_IMAGE_MB__",options.maxImageSizeMB.toString()).toByteArray(Charsets.UTF_8)}
+    private val page by lazy {context.assets.open(if(options.chat) "http-chat.html" else "http-server.html").bufferedReader().use {it.readText()}.replace("__MAX_FILE_MB__",options.maxFileSizeMB.toString()).replace("__MAX_IMAGE_MB__",options.maxImageSizeMB.toString()).replace("__SERVER_NAME__",android.text.TextUtils.htmlEncode(options.name)).toByteArray(Charsets.UTF_8)}
     private val networkCallback=object:ConnectivityManager.NetworkCallback() {
         override fun onLost(n:Network) {if(n==network) fail("Wi-Fi 已断开，HTTP 服务已关闭")}
         override fun onLinkPropertiesChanged(n:Network,p:LinkProperties) {

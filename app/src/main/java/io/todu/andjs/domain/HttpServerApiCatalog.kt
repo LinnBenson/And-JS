@@ -7,6 +7,7 @@ object HttpServerApiCatalog {
         listOf(
             ApiArgument("options","object，可选","省略时使用默认配置；不打印启动信息，收到的文字与上传进度仍使用默认日志。"),
             ApiArgument("options.port","number，可选","端口，默认 8080；1024–65535 的整数，被占用时抛错。"),
+            ApiArgument("options.name","string，可选","网页名称，默认 And JS；标题、页脚和浏览器标题同步显示。空白名称使用默认值。"),
             ApiArgument("options.token","string，可选","访问码，省略或空字符串表示无密码，网页留空即可；也可指定 1–64 个非空格 ASCII 字符。在 onStart 回调中取得地址及访问码。"),
             ApiArgument("options.maxFileSizeMB","number，可选","单个文件上限，默认 100；1–1024 的整数，1 MB = 1048576 字节。不限制上传速度。"),
             ApiArgument("options.onStart","function(server)，可选","监听成功后执行一次，由脚本决定如何显示状态、地址及访问码；省略时不输出启动日志。"),
@@ -44,6 +45,7 @@ object HttpServerApiCatalog {
         fields=listOf(
             ApiArgument("server.url","string","Wi-Fi IPv4 网页地址，包含端口。"),
             ApiArgument("server.port","number","实际监听端口。"),
+            ApiArgument("server.name","string","本次上传网页名称。"),
             ApiArgument("server.token","string","网页访问码。是否输出由脚本决定。"),
             ApiArgument("server.status","string","启动成功时为 listening。"),
             ApiArgument("server.directory","string","固定为 Download/，本机下载根目录。"),

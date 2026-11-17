@@ -701,6 +701,9 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                         require(value==null || value is org.mozilla.javascript.Function) {"$name 必须为函数"}
                         return value as? org.mozilla.javascript.Function
                     }
+                    val nameOption=option("name")
+                    require(nameOption==null || nameOption is CharSequence) {"name 必须为字符串"}
+                    val serverName=nameOption?.toString()?.trim()?.takeIf {it.isNotEmpty()} ?: "And JS"
                     val onStart=callbackOption("onStart")
                     val onText=callbackOption("onText")
                     val onMessage=callbackOption("onMessage")
@@ -740,12 +743,13 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                     try {
                         checkRun()
                         val host=platform ?: error("当前环境不支持 HTTP 服务")
-                        val activeServer=if(chatting) host.openHttpChat(port,token,size,imageSize,control) else host.openHttpServer(port,token,size,control)
+                        val activeServer=if(chatting) host.openHttpChat(port,token,size,imageSize,control,serverName) else host.openHttpServer(port,token,size,control,serverName)
                         server=activeServer
                         activeServer.failure?.let {error(it)}
                         val details=linkedMapOf<String,Any?>("url" to activeServer.url,"port" to port,"token" to activeServer.token,
                             "status" to "listening","maxFileSizeMB" to size)
-                        if(chatting) {details["sessionId"]=activeServer.sessionId;details["maxImageSizeMB"]=imageSize} else details["directory"]="Download/"
+                        details["name"]=serverName
+                        if(chatting) {details["sessionId"]=activeServer.sessionId;details["maxImageSizeMB"]=imageSize} else {details["directory"]="Download/"}
                         val handle=js(details) as ScriptableObject
                         serverObject=handle
                         if(chatting) function(handle,"send") {values->

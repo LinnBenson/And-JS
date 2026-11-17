@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>And JS · 局域网传送</title>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="andjs-name" content="__SERVER_NAME__"><title>__SERVER_NAME__ · 局域网传送</title>
 <style>
 #andjs-transfer-preview{--aj-bg:light-dark(#f5f6f8,#111215);--aj-surface:light-dark(#ffffff,#1b1d21);--aj-ink:light-dark(#202226,#f3f4f6);--aj-sub:light-dark(#737780,#a0a5ae);--aj-line:light-dark(#e5e7eb,#353840);--aj-soft:light-dark(#f4f5f7,#25282e);--aj-action:light-dark(#24272c,#f0f1f4);--aj-on-action:light-dark(#fff,#1a1c20);--aj-brand:light-dark(#536ce7,#9ba9ff);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--aj-ink);width:100%}
 #andjs-transfer-preview *{box-sizing:border-box}
@@ -59,9 +59,31 @@
 
 #andjs-transfer-preview .aj-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 html{color-scheme:light dark;background:#f1f2f4}body{margin:0;padding:0;background:#f1f2f4} @media(prefers-color-scheme:dark){html,body{background:#111215}}
+
+#andjs-transfer-preview .aj-brand{overflow-wrap:anywhere}
+#andjs-transfer-preview .aj-header>div:first-child{min-width:0}
+#andjs-transfer-preview .aj-drop{padding:0;gap:0;overflow:hidden}
+#andjs-transfer-preview .aj-picker{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;width:100%;min-height:208px;padding:24px;cursor:pointer}
+#andjs-transfer-preview .aj-transfer-detail{width:100%;padding:15px 18px;border-top:1px solid var(--aj-line);text-align:left}
+#andjs-transfer-preview .aj-transfer-detail:empty{display:none}
+#andjs-transfer-preview .aj-progress-wrap{margin:0 0 10px}
+#andjs-transfer-preview .aj-track{background:var(--aj-line)}
+#andjs-transfer-preview .aj-detail-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
+#andjs-transfer-preview .aj-detail-row .aj-feedback{margin:0;min-height:0;overflow-wrap:anywhere;flex:1}
+#andjs-transfer-preview .aj-feedback:empty{display:none}
+#andjs-transfer-preview .aj-cancel{border:1px solid var(--aj-line);border-radius:7px;background:var(--aj-surface);color:var(--aj-ink);padding:6px 10px;font-size:12px;white-space:nowrap}
+#andjs-transfer-preview .aj-bottom>span:last-child{display:block;text-align:right;overflow-wrap:anywhere;min-width:0}
+@media(max-width:520px){#andjs-transfer-preview .aj-drop{padding:0}#andjs-transfer-preview .aj-picker{padding:20px 12px;min-height:205px}#andjs-transfer-preview .aj-transfer-detail{padding:12px}}
+
+#andjs-transfer-preview .aj-result-host{position:relative}
+#andjs-transfer-preview .aj-text-host{margin:22px 0 18px;border-radius:12px;overflow:hidden}
+#andjs-transfer-preview .aj-text-host .aj-text{margin:0}
+#andjs-transfer-preview .aj-result-mask{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:var(--aj-soft);border-radius:inherit;color:var(--aj-ink);text-align:center;padding:20px}
+#andjs-transfer-preview .aj-result-mask svg{width:46px;height:46px;color:#36946a}
+#andjs-transfer-preview .aj-result-mask strong{font-size:16px;font-weight:600}
 </style>
 </head><body>
-<div id="andjs-transfer-preview" aria-label="And JS 局域网传送界面预览">
+<div id="andjs-transfer-preview" aria-label="局域网传送">
   <div class="aj-page">
     <header class="aj-header"><div><div class="aj-brand">And JS</div><div class="aj-brand-sub">局域网传送</div></div><div class="aj-wifi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8a16 16 0 0 1 20 0M5 12a11 11 0 0 1 14 0m-10 4a5 5 0 0 1 6 0"/><circle cx="12" cy="20" r=".5"/></svg> 同一网络，即刻传送</div></header>
     <section class="aj-panel" aria-label="传送面板">
@@ -78,7 +100,7 @@ html{color-scheme:light dark;background:#f1f2f4}body{margin:0;padding:0;backgrou
       </div>
 <div class="aj-content" id="aj-image-panel" role="tabpanel" aria-labelledby="aj-image-tab" hidden>
 <h2 class="aj-heading">发送一张图片</h2><p class="aj-caption">直接显示在设备的日志中。</p>
-<label class="aj-drop cursor-interaction"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 17V7m-4 4 4-4 4 4"/></svg><span id="aj-image-name">点击选择图片</span><span class="aj-sub">每次一张 · 最大 2 MB</span><img id="aj-image-preview" alt="所选图片预览" hidden style="max-width:100%;max-height:220px;object-fit:contain;border-radius:8px"><input id="aj-image-input" type="file" accept="image/*" aria-label="选择图片"></label>
+<label class="aj-drop cursor-interaction"><div class="aj-file-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg></div><span class="aj-file-name" id="aj-image-name">拖放图片到这里，或<span class="aj-choice">点击选择</span></span><span class="aj-sub" id="aj-image-meta">每次一张 · 最大 2 MB</span><img id="aj-image-preview" alt="所选图片预览" hidden style="max-width:100%;max-height:220px;object-fit:contain;border-radius:8px"><input id="aj-image-input" type="file" accept="image/*" aria-label="选择图片"></label>
 <div class="aj-footer-row"><span class="aj-destination">发送到日志</span><button type="button" class="aj-primary cursor-interaction" id="aj-image-send">发送图像<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 18 18 6M6 6h12v12"/></svg></button></div><div class="aj-feedback" id="aj-image-feedback" aria-live="polite"></div></div>
 <div id="aj-transfer-controls" hidden style="padding:0 24px 20px;text-align:right"><button id="aj-cancel" type="button" class="aj-icon-button" style="width:auto;padding:0 12px">取消上传</button></div>
     </section>
@@ -87,23 +109,79 @@ html{color-scheme:light dark;background:#f1f2f4}body{margin:0;padding:0;backgrou
 </div>
 <script>
 'use strict';
+
+const options = {name: document.querySelector('meta[name=andjs-name]').content};
 const get=id=>document.getElementById(id), maxFileMB=__MAX_FILE_MB__;
+const displayName=typeof options.name==='string' && options.name.trim()?options.name.trim():'And JS';
+document.querySelector('.aj-brand').textContent=displayName;
+document.querySelector('.aj-bottom>span:last-child').textContent=displayName+' · Transfer';
+document.title=displayName+' · 局域网传送';
+get('andjs-transfer-preview').setAttribute('aria-label',displayName+' 局域网传送');
+const filePlaceholder=get('aj-file-name').innerHTML,imagePlaceholder=get('aj-image-name').innerHTML;
+const resultKinds=new Set();
+const messageInput=get('aj-message'),messageHost=document.createElement('div');
+messageHost.className='aj-text-host aj-result-host';messageInput.replaceWith(messageHost);messageHost.append(messageInput);
+function showSuccess(kind){
+ resultKinds.add(kind);
+ const host=kind==='text'?messageHost:kind==='image'?imageBox.box:fileBox.box;
+ const mask=document.createElement('div');mask.className='aj-result-mask';mask.setAttribute('role','status');
+ mask.innerHTML='<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="24" r="20"/><path d="m14 24 7 7 14-15"/></svg><strong></strong>';
+ mask.querySelector('strong').textContent=kind==='file'?'上传成功':'发送成功';host.append(mask);
+ if(kind==='text'){messageInput.readOnly=true;get('aj-send').disabled=true;}
+ else {uploading(true);get('aj-transfer-controls').hidden=true;}
+ return new Promise(resolve=>setTimeout(()=>{
+  if(kind==='text'){messageInput.value='';messageInput.readOnly=false;get('aj-count').textContent='0 / 2000';status('aj-text-feedback','');}
+  else {resetSelection(kind);status(kind==='image'?'aj-image-feedback':'aj-file-feedback','');}
+  mask.remove();resultKinds.delete(kind);
+  if(kind==='text')get('aj-send').disabled=false;else uploading(false);
+  resolve();
+ },2000));
+}
+
+function makeBox(inputId,feedbackId,id){
+ const picker=get(inputId).parentElement,box=document.createElement('div');
+ box.className='aj-drop';box.id=id;picker.replaceWith(box);box.append(picker);
+ picker.className='aj-picker';picker.removeAttribute('id');
+ const detail=document.createElement('div');detail.className='aj-transfer-detail';detail.hidden=true;
+ const row=document.createElement('div');row.className='aj-detail-row';row.append(get(feedbackId));detail.append(row);box.append(detail);
+ return {box,detail,row};
+}
+const fileBox=makeBox('aj-file-input','aj-file-feedback','aj-drop');
+const imageBox=makeBox('aj-image-input','aj-image-feedback','aj-image-drop');
+fileBox.detail.prepend(get('aj-progress-wrap'));
+get('aj-transfer-controls').removeAttribute('style');
+get('aj-cancel').className='aj-cancel';get('aj-cancel').removeAttribute('style');
+fileBox.row.append(get('aj-transfer-controls'));
+function resetSelection(kind){
+ if(kind==='image'){
+  image=null;get('aj-image-input').value='';get('aj-image-preview').hidden=true;get('aj-image-preview').removeAttribute('src');
+  if(imageUrl)URL.revokeObjectURL(imageUrl);imageUrl=null;get('aj-image-name').innerHTML=imagePlaceholder;get('aj-image-meta').textContent='每次一张 · 最大 2 MB';
+ }else{
+  file=null;get('aj-file-input').value='';get('aj-file-name').innerHTML=filePlaceholder;
+  get('aj-file-meta').textContent='每次一个文件 · 最大 '+maxFileMB+' MB';get('aj-progress-wrap').hidden=true;
+ }
+}
+
 let activeTab='file',file=null,image=null,imageUrl=null,current=null;
 const tabs={file:['aj-files-tab','aj-files'],text:['aj-text-tab','aj-text-panel'],image:['aj-image-tab','aj-image-panel']};
 function tab(key){activeTab=key;for(const [k,[button,panel]] of Object.entries(tabs)){get(button).setAttribute('aria-selected',String(k===key));get(panel).hidden=k!==key;}}
 for(const [key,[button]] of Object.entries(tabs)){get(button).onclick=()=>tab(key);get(button).onkeydown=e=>{if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();const keys=Object.keys(tabs);tab(keys[(keys.indexOf(activeTab)+(e.key==='ArrowRight'?1:2))%3]);get(tabs[activeTab][0]).focus();}};}
-function status(id,message){get(id).textContent=message;}
+function status(id,message){get(id).textContent=message;if(id==='aj-file-feedback')fileBox.detail.hidden=!message;if(id==='aj-image-feedback')imageBox.detail.hidden=!message;}
 function size(n){return n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFixed(1)+' MB';}
 get('aj-eye').onclick=()=>{const f=get('aj-access');f.type=f.type==='password'?'text':'password';get('aj-eye').setAttribute('aria-label',f.type==='password'?'显示访问码':'隐藏访问码');};
 get('aj-message').oninput=()=>{get('aj-count').textContent=get('aj-message').value.length+' / 2000';};
-get('aj-send').onclick=async()=>{const text=get('aj-message').value;if(!text.trim()){status('aj-text-feedback','先输入要发送的文字');return;}get('aj-send').disabled=true;status('aj-text-feedback','发送中…');const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);try{const r=await fetch('/text',{method:'POST',headers:{'X-AndJS-Token':get('aj-access').value,'Content-Type':'text/plain;charset=UTF-8'},body:text,signal:controller.signal});const data=await r.json();if(!r.ok)throw Error(data.message);status('aj-text-feedback','已发送');}catch(e){status('aj-text-feedback',e.name==='AbortError'?'发送超时，请重试':e.message||'连接失败');}finally{clearTimeout(timer);get('aj-send').disabled=false;}};
-function pickFile(f){if(current||!f)return;file=f;get('aj-file-name').textContent=f.name;get('aj-file-meta').textContent=size(f.size)+' · 已选择';get('aj-progress-wrap').hidden=true;status('aj-file-feedback','');}
+get('aj-send').onclick=async()=>{const text=get('aj-message').value;if(!text.trim()){status('aj-text-feedback','先输入要发送的文字');return;}get('aj-send').disabled=true;status('aj-text-feedback','发送中…');const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);try{const r=await fetch('/text',{method:'POST',headers:{'X-AndJS-Token':get('aj-access').value,'Content-Type':'text/plain;charset=UTF-8'},body:text,signal:controller.signal});const data=await r.json();if(!r.ok)throw Error(data.message);status('aj-text-feedback','');await showSuccess('text');}catch(e){status('aj-text-feedback',e.name==='AbortError'?'发送超时，请重试':e.message||'连接失败');}finally{clearTimeout(timer);get('aj-send').disabled=false;}};
+function pickFile(f){if(current||resultKinds.size||!f)return;file=f;get('aj-file-name').textContent=f.name;get('aj-file-meta').textContent=size(f.size)+' · 已选择';get('aj-progress-wrap').hidden=true;status('aj-file-feedback','');}
 get('aj-file-input').onchange=e=>pickFile(e.target.files[0]);
 get('aj-drop').ondragover=e=>{e.preventDefault();if(!current)get('aj-drop').classList.add('is-over');};get('aj-drop').ondragleave=()=>get('aj-drop').classList.remove('is-over');get('aj-drop').ondrop=e=>{e.preventDefault();get('aj-drop').classList.remove('is-over');pickFile(e.dataTransfer.files[0]);};
-get('aj-image-input').onchange=e=>{const f=e.target.files[0];if(!f||current)return;if(imageUrl){URL.revokeObjectURL(imageUrl);imageUrl=null;}image=null;get('aj-image-preview').hidden=true;if(!f.type.startsWith('image/')){status('aj-image-feedback','请选择图片');return;}if(f.size>2097152){status('aj-image-feedback','日志图片最大 2 MB；大图片可通过文件页上传');return;}image=f;imageUrl=URL.createObjectURL(f);get('aj-image-preview').src=imageUrl;get('aj-image-preview').hidden=false;get('aj-image-name').textContent=f.name+' · '+size(f.size);status('aj-image-feedback','');};
+function pickImage(f){if(!f||current||resultKinds.size)return;if(imageUrl){URL.revokeObjectURL(imageUrl);imageUrl=null;}image=null;get('aj-image-preview').hidden=true;if(!f.type.startsWith('image/')){status('aj-image-feedback','请选择图片');return;}if(f.size>2097152){status('aj-image-feedback','日志图片最大 2 MB；大图片可通过文件页上传');return;}image=f;imageUrl=URL.createObjectURL(f);get('aj-image-preview').src=imageUrl;get('aj-image-preview').hidden=false;get('aj-image-name').textContent=f.name;get('aj-image-meta').textContent=size(f.size)+' · 已选择';status('aj-image-feedback','');}
+get('aj-image-input').onchange=e=>pickImage(e.target.files[0]);
+imageBox.box.ondragover=e=>{e.preventDefault();if(!current&&!resultKinds.size)imageBox.box.classList.add('is-over');};
+imageBox.box.ondragleave=()=>imageBox.box.classList.remove('is-over');
+imageBox.box.ondrop=e=>{e.preventDefault();imageBox.box.classList.remove('is-over');pickImage(e.dataTransfer.files[0]);};
 get('aj-image-preview').onerror=()=>{image=null;get('aj-image-preview').hidden=true;status('aj-image-feedback','无法预览此图片，请选择其他图片');};
 function uploading(on){for(const id of ['aj-upload','aj-image-send','aj-file-input','aj-image-input'])get(id).disabled=on;get('aj-transfer-controls').hidden=!on;}
-function upload(kind){if(current)return;const isImage=kind==='image',f=isImage?image:file,feedback=isImage?'aj-image-feedback':'aj-file-feedback';if(!f){status(feedback,isImage?'请先选择图片':'请先选择文件');return;}if(f.size>(isImage?2097152:maxFileMB*1048576)){status(feedback,isImage?'日志图片最大 2 MB':'单个文件不能超过 '+maxFileMB+' MB');return;}const xhr=new XMLHttpRequest();current=xhr;uploading(true);status(feedback,'准备上传…');if(!isImage){get('aj-progress-wrap').hidden=false;get('aj-progress-bar').style.width='0%';get('aj-progress-number').textContent='0%';get('aj-progress').setAttribute('aria-valuenow','0');get('aj-progress-status').textContent='正在上传';}let last=0;xhr.open('POST',(isImage?'/image':'/upload')+'?name='+encodeURIComponent(f.name));xhr.setRequestHeader('X-AndJS-Token',get('aj-access').value);xhr.setRequestHeader('Content-Type','application/octet-stream');xhr.upload.onprogress=e=>{const now=Date.now();if(now-last<1000&&e.loaded!==e.total)return;last=now;const percent=e.total?Math.floor(e.loaded*100/e.total):0;status(feedback,percent===100?(isImage?'正在显示到日志…':'正在保存…'):percent+'% · '+size(e.loaded)+' / '+size(e.total));if(!isImage){get('aj-progress-bar').style.width=percent+'%';get('aj-progress-number').textContent=percent+'%';get('aj-progress').setAttribute('aria-valuenow',String(percent));}};xhr.onload=()=>{try{const data=JSON.parse(xhr.responseText);status(feedback,xhr.status===200?(data.name+' · '+data.message):data.message||'上传失败');if(!isImage)get('aj-progress-status').textContent=xhr.status===200?'上传完成':'上传失败';}catch(_){status(feedback,'服务响应异常');}};xhr.onerror=()=>status(feedback,'连接中断，请检查设备并重试');xhr.onabort=()=>status(feedback,'已取消上传');xhr.onloadend=()=>{current=null;uploading(false);};xhr.send(f);}
+function upload(kind){if(current||resultKinds.size)return;const isImage=kind==='image',f=isImage?image:file,feedback=isImage?'aj-image-feedback':'aj-file-feedback';if(!f){status(feedback,isImage?'请先选择图片':'请先选择文件');return;}if(f.size>(isImage?2097152:maxFileMB*1048576)){status(feedback,isImage?'日志图片最大 2 MB':'单个文件不能超过 '+maxFileMB+' MB');return;}const box=isImage?imageBox:fileBox;box.row.append(get('aj-transfer-controls'));const xhr=new XMLHttpRequest();current=xhr;uploading(true);status(feedback,'准备上传…');if(!isImage){get('aj-progress-wrap').hidden=false;get('aj-progress-bar').style.width='0%';get('aj-progress-number').textContent='0%';get('aj-progress').setAttribute('aria-valuenow','0');get('aj-progress-status').textContent='正在上传';}let last=0;xhr.open('POST',(isImage?'/image':'/upload')+'?name='+encodeURIComponent(f.name));xhr.setRequestHeader('X-AndJS-Token',get('aj-access').value);xhr.setRequestHeader('Content-Type','application/octet-stream');xhr.upload.onprogress=e=>{const now=Date.now();if(now-last<1000&&e.loaded!==e.total)return;last=now;const percent=e.total?Math.floor(e.loaded*100/e.total):0;status(feedback,percent===100?(isImage?'正在显示到日志…':'正在保存…'):(isImage?percent+'% · ':'')+size(e.loaded)+' / '+size(e.total));if(!isImage){get('aj-progress-bar').style.width=percent+'%';get('aj-progress-number').textContent=percent+'%';get('aj-progress').setAttribute('aria-valuenow',String(percent));}};xhr.onload=()=>{try{const data=JSON.parse(xhr.responseText);if(xhr.status===200){status(feedback,'');showSuccess(kind);}else{status(feedback,data.message||'上传失败');if(!isImage)get('aj-progress-status').textContent='上传失败';}}catch(_){status(feedback,'服务响应异常');}};xhr.onerror=()=>status(feedback,'连接中断，请检查设备并重试');xhr.onabort=()=>status(feedback,'已取消上传');xhr.onloadend=()=>{current=null;if(!resultKinds.has(kind))uploading(false);};xhr.send(f);}
 get('aj-upload').onclick=()=>upload('file');get('aj-image-send').onclick=()=>upload('image');get('aj-cancel').onclick=()=>current?.abort();
 window.addEventListener('pagehide',()=>{current?.abort();if(imageUrl)URL.revokeObjectURL(imageUrl);});
 </script></body></html>
