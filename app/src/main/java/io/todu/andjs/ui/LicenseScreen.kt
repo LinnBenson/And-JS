@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 @Composable fun LicenseScreen(onBack:()->Unit) {
     val context=LocalContext.current
-    val text=remember {listOf("ZXing","Lucide","Feather","Rhino","OkHttp","Okio","AndroidX-Health-Guava").joinToString("\n\n") {name -> name+"\n\n"+context.assets.open("licenses/$name.txt").bufferedReader().use {it.readText()}}}
+    val text=remember {listOf("ZXing","Lucide","Feather","Rhino","Babel","OkHttp","Okio","AndroidX-Health-Guava").joinToString("\n\n") {name -> name+"\n\n"+context.assets.open("licenses/$name.txt").bufferedReader().use {it.readText()}}}
     BackHandler(onBack=onBack)
     Scaffold(containerColor=MaterialTheme.colorScheme.background,topBar={Row(Modifier.statusBarsPadding().height(60.dp),verticalAlignment=Alignment.CenterVertically){
         IconButton(onClick=onBack){Glyph("back",MaterialTheme.colorScheme.onSurface,Modifier.size(22.dp),"返回")}

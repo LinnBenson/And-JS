@@ -43,12 +43,12 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
         override fun removeEldestEntry(eldest:MutableMap.MutableEntry<String,org.mozilla.javascript.Script>?):Boolean = size>4
     }
     private var compiledEpoch=-1L
-    private fun program(cx:Context,code:String):org.mozilla.javascript.Script {
-        if(!lowMemory || code.length>16_000) return cx.compileString(code,"main.js",1,null)
+    private fun program(cx:Context,code:String,prepare:(String)->String):org.mozilla.javascript.Script {
+        if(!lowMemory || code.length>16_000) return cx.compileString(prepare(code),"main.js",1,null)
         return synchronized(compiled) {
             val epoch=io.todu.andjs.data.AppCache.epoch.value
             if(compiledEpoch!=epoch) {compiled.clear();compiledEpoch=epoch}
-            compiled.getOrPut(code) {cx.compileString(code,"main.js",1,null)}
+            compiled.getOrPut(code) {cx.compileString(prepare(code),"main.js",1,null)}
         }
     }
     override suspend fun run(source:String, parameters:List<ScriptParameter>, globals:List<ScriptParameter>, control:RunControl, onLogs:(List<LogEntry>)->Unit):RunResult = withContext(Dispatchers.Default) {
@@ -56,7 +56,9 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
         val maxLogs=200
         val maxOutput=if(lowMemory) 8000 else 32000
         val heap=Runtime.getRuntime()
-        val baseline=heap.totalMemory()-heap.freeMemory()
+        var baseline=heap.totalMemory()-heap.freeMemory()
+        var preparing=false
+        var preparationDeadline=0L
         val logs=mutableListOf<LogEntry>()
         val logIds=mutableMapOf<String,Int>()
         var output=""
@@ -75,7 +77,8 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
             if(httpCloseDeadline!=0L) {
                 if(System.nanoTime()>=httpCloseDeadline) throw Context.reportRuntimeError("onClose 执行时间超过 250 毫秒")
             } else if(control.stopped.get()) throw RunAborted(true)
-            if(lowMemory && heap.totalMemory()-heap.freeMemory()-baseline>16L*1024*1024) throw Context.reportRuntimeError("脚本内存占用过高，已停止")
+            if(preparing && System.nanoTime()>preparationDeadline) throw Context.reportRuntimeError("脚本兼容转换超时")
+            if(!preparing && lowMemory && heap.totalMemory()-heap.freeMemory()-baseline>16L*1024*1024) throw Context.reportRuntimeError("脚本内存占用过高，已停止")
         }
         val factory=object:ContextFactory() {
             override fun makeContext():Context = super.makeContext().apply {
@@ -1088,7 +1091,17 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                 }
                 checkRun()
                 try {
-                    program(cx,code).exec(cx,scope);checkRun()
+                    program(cx,code) { original ->
+                        val before=heap.totalMemory()-heap.freeMemory()
+                        preparing=true
+                        preparationDeadline=System.nanoTime()+30_000_000_000L
+                        try { ScriptCompatibility.transform(cx,original,::checkRun) }
+                        finally {
+                            // Compiler allocations are separate from the running script's heap budget.
+                            baseline+=(heap.totalMemory()-heap.freeMemory()-before).coerceAtLeast(0L)
+                            preparing=false
+                        }
+                    }.exec(cx,scope);checkRun()
                     do {
                         checkRun()
                         hotspotPumps.toList().forEach {it()}

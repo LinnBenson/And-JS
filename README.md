@@ -439,3 +439,9 @@ exit(result);
 `andjs.wifi.stopHotspot()` 可由任意脚本调用，释放所有 And JS 请求并尝试关闭设备 Wi-Fi 热点。`getHotspotState()`、`checkHotspotLeaks()` 区分本应用记录与系统状态；权限不足时返回未知，不保证关闭其他应用持有的热点。完整参数和回调见应用内接口声明。
 
 可用 `andjs.system.openSettings("hotspot")` 尝试打开本机系统热点设置。手机和手表均取决于固件是否提供可访问的页面；此调用不自动开启热点，也不授予网络共享权限。
+
+### JavaScript 兼容性
+
+脚本源码在运行前会转换 `let`、`const` 和相关循环语法，保留块级作用域、循环闭包与常量赋值检查，修复循环内 `const` 值不更新的问题。首次转换可能增加启动耗时。动态 `eval()` 和 `Function()` 中的代码仍由 Rhino 直接解析，不经过此转换；声明前访问变量的暂时性死区检查暂不完整支持。
+
+兼容转换使用 Babel，许可证随应用附带。
