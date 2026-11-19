@@ -81,7 +81,11 @@ class MainActivity : ComponentActivity() {
                     if(id!=null) {widgetRequest.value=null;complicationRequest.value=null;app.watchStore.state.value.scripts.find {it.item.id==id && (it.item.widget || shortcut==id)}?.let {window.decorView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK);watch.run(it,fromWatchFace=true)}}
                 }
                 stopWork=watch::background
-                WatchScreen(watch) {moveTaskToBack(true)}
+                WatchScreen(watch) {
+                    watch.close()
+                    handler.removeCallbacks(exitTask)
+                    finishAndRemoveTask()
+                }
             } else {
             val model: HomeViewModel = viewModel(factory = object: ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST") override fun <T: ViewModel> create(modelClass: Class<T>): T = HomeViewModel(app.repository, app.runner, app.globals, app.categories, app.watchSync, onRunStarted={window.decorView.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)}) as T
