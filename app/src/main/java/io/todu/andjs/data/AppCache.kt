@@ -57,6 +57,7 @@ object AppCache {
                 listOf("user/network","watch-preview/user/network").forEach {relative->
                     val directory=File(app.filesDir,relative)
                     if(directory.exists()) {
+                        clearDirectory(File(directory,"andjs-source-cache"))
                         val children=directory.listFiles() ?: error("无法读取临时下载目录")
                         children.filter {it.name.matches(Regex("andjs-temp-[0-9a-f-]{36}\\.bin|andjs-part-[0-9]+\\.tmp"))}
                             .forEach {Files.deleteIfExists(it.toPath())}

@@ -38,18 +38,29 @@ private class RunAborted(val cancelled:Boolean): Error()
 
 /** Each invocation has an independent safe scope; Java reflection and host objects are not exposed. */
 class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System.getProperty("java.io.tmpdir"),"andjs-network"),private val platform:PlatformApi?=null,private val lowMemory:Boolean=false) : ScriptRunner {
-    // Cache only small watch scripts; scopes and API bindings remain per-run.
-    private val compiled=object:LinkedHashMap<String,org.mozilla.javascript.Script>(4,0.75f,true) {
-        override fun removeEldestEntry(eldest:MutableMap.MutableEntry<String,org.mozilla.javascript.Script>?):Boolean = size>4
-    }
+    // Bytecode is reusable; execution scopes and API bindings remain fresh for each run.
+    private data class CompiledProgram(val script:org.mozilla.javascript.Script,val size:Int)
+    private val compiled=LinkedHashMap<String,CompiledProgram>(8,0.75f,true)
+    private val sourceCache=ScriptSourceCache(java.io.File(networkRoot,"andjs-source-cache"))
     private var compiledEpoch=-1L
     private fun program(cx:Context,code:String,prepare:(String)->String):org.mozilla.javascript.Script {
-        if(!lowMemory || code.length>16_000) return cx.compileString(prepare(code),"main.js",1,null)
-        return synchronized(compiled) {
+        val key=sourceCache.key(code)
+        synchronized(compiled) {
             val epoch=io.todu.andjs.data.AppCache.epoch.value
             if(compiledEpoch!=epoch) {compiled.clear();compiledEpoch=epoch}
-            compiled.getOrPut(code) {cx.compileString(prepare(code),"main.js",1,null)}
+            compiled[key]?.let {return it.script}
         }
+        val converted=sourceCache.read(key) ?: prepare(code).also {sourceCache.write(key,it)}
+        val script=cx.compileString(converted,"main.js",1,null)
+        val limit=if(lowMemory) 128_000 else 512_000
+        if(converted.length<=limit) synchronized(compiled) {
+            // Includes generated helpers; bound both total source size and entry count.
+            compiled[key]=CompiledProgram(script,converted.length)
+            while(compiled.size>(if(lowMemory) 4 else 8) || compiled.values.sumOf {it.size}>limit) {
+                compiled.remove(compiled.keys.first())
+            }
+        }
+        return script
     }
     override suspend fun run(source:String, parameters:List<ScriptParameter>, globals:List<ScriptParameter>, control:RunControl, onLogs:(List<LogEntry>)->Unit):RunResult = withContext(Dispatchers.Default) {
         val started=System.nanoTime()
