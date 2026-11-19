@@ -3,6 +3,7 @@ package io.todu.andjs.runtime
 import io.todu.andjs.domain.ScriptParameter
 import org.json.JSONArray
 import org.json.JSONObject
+import org.json.JSONTokener
 
 /** Host-side value helpers for the JS binding: andjs.value.get(key, defaultValue) / andjs.global.get(key, defaultValue). */
 class AndJsValues(parameters: List<ScriptParameter>) {
@@ -14,7 +15,13 @@ object ParameterValues {
         "boolean" -> { require(parameter.value=="true" || parameter.value=="false"); parameter.value=="true" }
         "string" -> parameter.value
         "number" -> parameter.value.toDouble().also { require(it.isFinite()) }
-        "array" -> convertArray(JSONArray(parameter.value))
+        "array" -> {
+            val reader = JSONTokener(parameter.value)
+            val value = reader.nextValue()
+            require(value is JSONArray || value is JSONObject)
+            require(reader.nextClean() == '\u0000')
+            requireNotNull(convert(value))
+        }
         else -> error("不支持的参数类型")
     }
     private fun convertArray(array: JSONArray): List<Any?> = (0 until array.length()).map { convert(array.get(it)) }
@@ -27,7 +34,7 @@ object ParameterValues {
     fun error(parameters: List<ScriptParameter>): String? {
         if(parameters.any {it.key.isBlank()}) return "参数键不能为空"
         if(parameters.map {it.key}.distinct().size!=parameters.size) return "参数键不能重复"
-        parameters.forEach { p -> try { parse(p) } catch(e: Exception) { return "${p.key}：${if(p.type=="array") "请输入有效的 JSON 数组" else "参数值无效"}" } }
+        parameters.forEach { p -> try { parse(p) } catch(e: Exception) { return "${p.key}：${if(p.type=="array") "请输入有效的 JSON 数组或对象" else "参数值无效"}" } }
         return null
     }
 }

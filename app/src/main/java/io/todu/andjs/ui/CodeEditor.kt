@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /** Native editor: matching line gutter, syntax colors, selection-aware insertion and bounded undo. */
-@Composable fun CodeEditor(initialText: String, onChange: (String) -> Unit, modifier: Modifier = Modifier,onFocus:(Boolean)->Unit = {}) {
+@Composable fun CodeEditor(initialText: String, onChange: (String) -> Unit, modifier: Modifier = Modifier,onFocus:(Boolean)->Unit = {}, jsonMode: Boolean = false, enabled: Boolean = true) {
     var value by rememberSaveable(stateSaver=TextFieldValue.Saver) { mutableStateOf(TextFieldValue(initialText)) }
     val undo = remember { mutableStateListOf<TextFieldValue>() }
     val redo = remember { mutableStateListOf<TextFieldValue>() }
@@ -47,7 +47,7 @@ import androidx.compose.ui.unit.sp
     val colors = MaterialTheme.colorScheme
     val dark = colors.surface.luminance()<.5f
     var focused by remember { mutableStateOf(false) }
-    val syntax = remember(dark) { JavascriptHighlight(dark) }
+    val syntax = remember(dark, jsonMode) { JavascriptHighlight(dark, jsonMode) }
     fun update(next: TextFieldValue) {
         if(next.text != value.text) {
             undo.add(value); if(undo.size>80) undo.removeAt(0); redo.clear()
@@ -65,8 +65,8 @@ import androidx.compose.ui.unit.sp
     val prefix = remember(value.text,value.selection) {
         if(value.selection.collapsed) Regex("[A-Za-z_$][A-Za-z0-9_$.]*$").find(value.text.take(value.selection.end))?.value.orEmpty() else ""
     }
-    val candidates = remember(prefix,value.text) {
-        if(prefix.isEmpty()) emptyList() else {
+    val candidates = remember(prefix,value.text,jsonMode) {
+        if(jsonMode || prefix.isEmpty()) emptyList() else {
             val api=ApiCatalog.methods.filter {it.signature.contains('(') && it.signature.substringBefore('(').matches(Regex("[A-Za-z_$][A-Za-z0-9_$.]*"))}.map { EditorSuggestion(it.signature.substringBefore('('),it.signature,it.summary,true) }
             val keywords=listOf("const","let","var","function","return","if","else","for","while","try","catch","throw","new","true","false","null","undefined")
                 .map {EditorSuggestion(it,it,"JavaScript",false)}
@@ -93,7 +93,8 @@ import androidx.compose.ui.unit.sp
             update(TextFieldValue(value.text.replaceRange(start,end,token+selected+close),TextRange(start+1+selected.length)))
         }
     }
-    val callHint=remember(value.text,value.selection) {
+    val callHint=remember(value.text,value.selection,jsonMode) {
+        if(jsonMode) return@remember null
         val name=Regex("([A-Za-z_$][A-Za-z0-9_$.]*)\\([^()]*$").find(value.text.take(value.selection.end))?.groupValues?.get(1)
         ApiCatalog.methods.firstOrNull {it.signature.substringBefore('(')==name}?.signature ?: javascriptSuggestions.firstOrNull {it.name==name}?.signature
             ?: javascriptMembers.firstOrNull {it.name==name?.substringAfterLast('.')}?.let {name?.substringBeforeLast('.')+"."+it.signature}
@@ -104,16 +105,16 @@ import androidx.compose.ui.unit.sp
         if(!focused) {
         Row(Modifier.fillMaxWidth().height(42.dp).background(colors.surfaceContainerLow).padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
             Glyph("code",colors.primary,Modifier.size(16.dp)); Spacer(Modifier.width(8.dp))
-            Text("main.js",fontFamily=FontFamily.Monospace,fontSize=12.sp,modifier=Modifier.weight(1f))
-            TextButton(onClick={if(undo.isNotEmpty()) {redo.add(value);value=undo.removeAt(undo.lastIndex);onChange(value.text)}},enabled=undo.isNotEmpty(),contentPadding=PaddingValues(horizontal=8.dp)) {Text("撤销",fontSize=12.sp)}
-            TextButton(onClick={if(redo.isNotEmpty()) {undo.add(value);value=redo.removeAt(redo.lastIndex);onChange(value.text)}},enabled=redo.isNotEmpty(),contentPadding=PaddingValues(horizontal=8.dp)) {Text("重做",fontSize=12.sp)}
+            Text(if(jsonMode) "JSON" else "main.js",fontFamily=FontFamily.Monospace,fontSize=12.sp,modifier=Modifier.weight(1f))
+            TextButton(onClick={if(undo.isNotEmpty()) {redo.add(value);value=undo.removeAt(undo.lastIndex);onChange(value.text)}},enabled=enabled && undo.isNotEmpty(),contentPadding=PaddingValues(horizontal=8.dp)) {Text("撤销",fontSize=12.sp)}
+            TextButton(onClick={if(redo.isNotEmpty()) {undo.add(value);value=redo.removeAt(redo.lastIndex);onChange(value.text)}},enabled=enabled && redo.isNotEmpty(),contentPadding=PaddingValues(horizontal=8.dp)) {Text("重做",fontSize=12.sp)}
         }
         HorizontalDivider(color=colors.outlineVariant)
         }
         Row(Modifier.weight(1f).fillMaxWidth().verticalScroll(vertical).padding(vertical=12.dp)) {
             Text((1..(value.text.count {it=='\n'}+1)).joinToString("\n"),fontSize=13.sp,lineHeight=22.sp,fontFamily=FontFamily.Monospace,color=colors.onSurfaceVariant.copy(alpha=.6f),modifier=Modifier.widthIn(min=40.dp).padding(horizontal=10.dp))
             Box(Modifier.weight(1f).onSizeChanged {viewportWidth=it.width}.horizontalScroll(horizontal).padding(end=20.dp)) {
-                BasicTextField(value=value,onValueChange={ next ->
+                BasicTextField(enabled=enabled,value=value,onValueChange={ next ->
                     // Indent only a single newline inserted at a collapsed cursor.
                     val pos=value.selection.start
                     if(value.selection.collapsed && next.text.length==value.text.length+1 && next.selection.start==pos+1 && next.text.getOrNull(pos)=='\n') {
@@ -155,12 +156,12 @@ import androidx.compose.ui.unit.sp
         }
         HorizontalDivider(color=colors.outlineVariant)
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),verticalAlignment=Alignment.CenterVertically) {
-            listOf("⇥","{","}","(",")","[","]",";","'","\"","`","=",".").forEach { token ->
-                TextButton(onClick={symbol(token)},modifier=Modifier.width(42.dp).height(48.dp),contentPadding=PaddingValues(0.dp)) {Text(token,fontSize=16.sp,fontFamily=FontFamily.Monospace)}
+            (if(jsonMode) listOf("⇥","{","}","[","]","\"",":",",") else listOf("⇥","{","}","(",")","[","]",";","'","\"","`","=",".")).forEach { token ->
+                TextButton(enabled=enabled,onClick={symbol(token)},modifier=Modifier.width(42.dp).height(48.dp),contentPadding=PaddingValues(0.dp)) {Text(token,fontSize=16.sp,fontFamily=FontFamily.Monospace)}
             }
         }
         if(!focused) Row(Modifier.fillMaxWidth().padding(horizontal=14.dp,vertical=6.dp),horizontalArrangement=Arrangement.SpaceBetween) {
-            Text("JavaScript",fontSize=10.sp,color=colors.onSurfaceVariant)
+            Text(if(jsonMode) "JSON" else "JavaScript",fontSize=10.sp,color=colors.onSurfaceVariant)
             Text("行 $line · 列 $column",fontSize=10.sp,color=colors.onSurfaceVariant)
         }
     }
@@ -168,17 +169,19 @@ import androidx.compose.ui.unit.sp
 
 private data class EditorSuggestion(val name:String,val signature:String,val description:String,val call:Boolean)
 
-private class JavascriptHighlight(private val dark: Boolean): VisualTransformation {
+private class JavascriptHighlight(private val dark: Boolean, private val jsonMode: Boolean = false): VisualTransformation {
     private val tokens=Regex("""//[^\n]*|/\*[\s\S]*?(?:\*/|$)|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b(?:const|let|var|function|return|if|else|for|of|in|while|do|switch|case|break|continue|default|try|catch|finally|throw|new|delete|typeof|instanceof|void|class|extends|super|this|static|get|set|async|await|yield|export|import|from|true|false|null|undefined)\b|\b(?:0[xX][\da-fA-F]+|0[bB][01]+|0[oO][0-7]+|\d+(?:\.\d*)?(?:[eE][+-]?\d+)?n?)\b|\b[A-Za-z_$][\w$]*(?=\s*\()|\b(?:andjs|console|JSON|Math|Object|Array|String|Number|Boolean|Date|RegExp|Error|Map|Set|Infinity|NaN)\b|(?<=\.)[A-Za-z_$][\w$]*|[{}()\[\]]|[+*/%=!<>?:&|~^;-]+""")
+    private val jsonTokens = Regex(""""(?:\\.|[^"\\])*"|-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b|\b(?:true|false|null)\b|[{}\[\]:,]""")
     override fun filter(text: AnnotatedString): TransformedText {
         val result=buildAnnotatedString {
             append(text)
-            tokens.findAll(text.text).forEach { match ->
+            (if(jsonMode) jsonTokens else tokens).findAll(text.text).forEach { match ->
                 val token=match.value
                 val color=when {
                     token.startsWith("//") || token.startsWith("/*") -> if(dark) Color(0xFF939DA5) else Color(0xFF66717A)
+                    jsonMode && token.startsWith("\"") && text.text.indexOfFirstAfter(match.range.last+1) == ':' -> if(dark) Color(0xFFACC4D4) else Color(0xFF46677C)
                     token.firstOrNull() in listOf('\'', '"', '`') -> if(dark) Color(0xFFB9C9AE) else Color(0xFF506644)
-                    token.firstOrNull()?.isDigit()==true -> if(dark) Color(0xFFD5C197) else Color(0xFF79613A)
+                    token.firstOrNull()?.isDigit()==true || (jsonMode && token.startsWith("-")) -> if(dark) Color(0xFFD5C197) else Color(0xFF79613A)
                     token in listOf("true","false","null","undefined","Infinity","NaN") -> if(dark) Color(0xFFC7B8D1) else Color(0xFF745C82)
                     token in listOf("andjs","console","JSON","Math","Object","Array","String","Number","Boolean","Date","RegExp","Error","Map","Set") -> if(dark) Color(0xFFACC4D4) else Color(0xFF46677C)
                     token !in listOf("if","for","while","switch","catch","function") && token.first().isLetter() && text.text.indexOfFirstAfter(match.range.last+1) == '(' -> if(dark) Color(0xFFD2C6A6) else Color(0xFF78653D)

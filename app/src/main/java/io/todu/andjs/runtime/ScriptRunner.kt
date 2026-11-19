@@ -161,7 +161,7 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                             is Boolean -> ScriptParameter(name,"boolean",value.toString())
                             is CharSequence -> ScriptParameter(name,"string",value.toString())
                             is Number -> {require(value.toDouble().isFinite()) {"数字必须有限"};ScriptParameter(name,"number",value.toString())}
-                            is NativeArray -> {
+                            is NativeArray, is NativeObject -> {
                                 val seen=java.util.IdentityHashMap<Scriptable,Boolean>()
                                 fun validate(v:Any?,depth:Int) {
                                     require(depth<=32) {"数组嵌套过深"}
@@ -1030,7 +1030,7 @@ class RhinoScriptRunner(private val networkRoot:java.io.File=java.io.File(System
                             val name=key.toString()
                             require(name.isNotBlank() && name.length<=200) {"参数键须为 1–200 字符"}
                             val value=if(key is Number) overrides.get(key.toInt(),overrides) else overrides.get(name,overrides)
-                            val type=when(value) {is Boolean->"boolean";is CharSequence->"string";is Number->{require(value.toDouble().isFinite());"number"};is NativeArray->"array";else->error("参数仅支持 boolean、string、number、array")}
+                            val type=when(value) {is Boolean->"boolean";is CharSequence->"string";is Number->{require(value.toDouble().isFinite());"number"};is NativeArray,is NativeObject->"array";else->error("参数仅支持 boolean、string、number、array")}
                             val encoded=if(type=="array") Context.toString(NativeJSON.stringify(cx,scope,value,null,null)) else Context.toString(value)
                             require(encoded.length<=1_000_000) {"参数内容过大"}
                             entries.removeAll {it.key==name};entries.add(ScriptParameter(name,type,encoded))

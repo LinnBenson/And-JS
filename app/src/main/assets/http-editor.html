@@ -24,7 +24,7 @@ function renderParams(){
    value.onclick=()=>{p.value=p.value==='true'?'false':'true';mark();update()};update();
   }else{
    value=document.createElement(p.type==='array'?'textarea':'input');
-   value.className='param-value';value.value=p.value;value.setAttribute('aria-label',p.type==='array'?'JSON 数组':'当前值');
+   value.className='param-value';value.value=p.value;value.setAttribute('aria-label',p.type==='array'?'JSON 数组或对象':'当前值');
    if(p.type==='number'){value.type='number';value.step='any';value.placeholder='0'}
    else if(p.type==='array'){value.rows=4;value.placeholder='[]';value.spellcheck=false}
    else{value.type='text';value.placeholder='当前值'}
@@ -42,7 +42,7 @@ function validateParams(){
  for(let i=0;i<draft.params.length;i++){
   const p=draft.params[i];let error='';
   if(p.type==='number'&&(!p.value.trim()||!Number.isFinite(Number(p.value))))error='请输入有效数字';
-  if(p.type==='array'){try{if(!Array.isArray(JSON.parse(p.value)))error='请输入 JSON 数组'}catch{error='JSON 数组格式不正确'}}
+  if(p.type==='array'){try{if((v=>v===null||typeof v!=='object')(JSON.parse(p.value)))error='请输入 JSON 数组或对象'}catch{error='JSON 数组或对象格式不正确'}}
   if(error){$('param-tab').click();const input=$('param-list').children[i].querySelector('.param-value');input.setCustomValidity(error);input.reportValidity();input.focus();return false}
  }return true;
 }

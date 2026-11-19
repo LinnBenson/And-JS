@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -125,32 +127,64 @@ fun ParameterEditScreen(
             }) { Text(if (saving) "保存中" else "保存") }
         }
     }) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            OutlinedTextField(key, { key = it; error = null }, label = { Text("键") }, singleLine = true, enabled = !saving, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("boolean", "string", "number", "array").forEach { option ->
-                    FilterChip(selected = type == option, enabled = !saving, onClick = {
-                        if (type != option) {
-                            type = option
-                            value = when (option) { "boolean" -> "false"; "number" -> "0"; "array" -> "[]"; else -> "" }
-                            error = null
+        BoxWithConstraints(Modifier.padding(padding).fillMaxSize()) {
+            val pageHeight = maxHeight.coerceAtLeast(380.dp)
+            val expandedInput = type == "array" || type == "string"
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                Column(Modifier.fillMaxWidth().then(if (expandedInput) Modifier.height(pageHeight) else Modifier).padding(horizontal = 20.dp).padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    OutlinedTextField(key, { key = it; error = null }, label = { Text("键") }, singleLine = true, enabled = !saving, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("boolean", "string", "number", "array").forEach { option ->
+                            FilterChip(selected = type == option, enabled = !saving, onClick = {
+                                if (type != option) {
+                                    type = option
+                                    value = when (option) { "boolean" -> "false"; "number" -> "0"; "array" -> "[]"; else -> "" }
+                                    error = null
+                                }
+                            }, label = { Text(option, fontSize = 12.sp, fontFamily = FontFamily.Monospace) })
                         }
-                    }, label = { Text(option, fontSize = 12.sp, fontFamily = FontFamily.Monospace) })
+                    }
+                    if (type == "boolean") Surface(shape = RoundedCornerShape(18.dp), color = colors.surfaceContainerLow) {
+                        Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("false", "true").forEach { option ->
+                                val selected = value == option
+                                Surface(onClick = { value = option; error = null }, enabled = !saving,
+                                    modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp),
+                                    color = if (selected) colors.primaryContainer else colors.surfaceContainerLow,
+                                    contentColor = if (selected) colors.onPrimaryContainer else colors.onSurfaceVariant) {
+                                    Row(Modifier.padding(vertical = 20.dp), horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically) {
+                                        Text(if (selected) "●" else "○", fontSize = 16.sp)
+                                        Spacer(Modifier.width(10.dp))
+                                        Text(option, fontFamily = FontFamily.Monospace, fontSize = 16.sp,
+                                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+                                    }
+                                }
+                            }
+                        }
+                    } else if (type == "array") Surface(modifier = Modifier.fillMaxWidth().weight(1f), shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, colors.outlineVariant)) {
+                        CodeEditor(initialText = value, onChange = { value = it; error = null },
+                            jsonMode = true, enabled = !saving, modifier = Modifier.fillMaxSize())
+                    } else OutlinedTextField(value, { value = it; error = null }, enabled = !saving,
+                        label = { Text(if (type == "number") "数值" else "文本") },
+                        singleLine = type == "number", minLines = 1,
+                        keyboardOptions = KeyboardOptions(keyboardType = if (type == "number") KeyboardType.Decimal else KeyboardType.Text),
+                        modifier = Modifier.fillMaxWidth().then(if (type == "string") Modifier.weight(1f) else Modifier), shape = RoundedCornerShape(18.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedContainerColor = colors.surfaceContainerLow,
+                            focusedContainerColor = colors.surfaceContainerLow,
+                            unfocusedBorderColor = colors.outlineVariant),
+                        textStyle = LocalTextStyle.current.copy(
+                            fontFamily = if (type == "number") FontFamily.Monospace else FontFamily.Default,
+                            fontSize = 16.sp,
+                            lineHeight = 26.sp))
+                    error?.let { Text(it, color = colors.error, fontSize = 13.sp) }
+                    if (!expandedInput) Spacer(Modifier.height(20.dp))
                 }
             }
-            if (type == "boolean") Surface(shape = RoundedCornerShape(14.dp), color = colors.surface) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(value, modifier = Modifier.weight(1f), fontFamily = FontFamily.Monospace)
-                    Switch(checked = value == "true", enabled = !saving, onCheckedChange = { value = it.toString() })
-                }
-            } else OutlinedTextField(value, { value = it; error = null }, enabled = !saving,
-                label = { Text(if (type == "array") "JSON 数组" else "值") },
-                minLines = if (type == "array") 5 else 2, modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp), textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace, fontSize = 14.sp))
-            error?.let { Text(it, color = colors.error, fontSize = 13.sp) }
-            Spacer(Modifier.height(20.dp))
         }
     }
+
     if (discard) AlertDialog(onDismissRequest = { discard = false }, title = { Text("放弃修改？") },
         confirmButton = { TextButton(onClick = onBack) { Text("放弃") } },
         dismissButton = { TextButton(onClick = { discard = false }) { Text("继续编辑") } })
